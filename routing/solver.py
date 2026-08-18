@@ -1,61 +1,85 @@
 from ortools.constraint_solver import routing_enums_pb2
 from ortools.constraint_solver import pywrapcp
 
-def resolver_cvrp(matriz_distancias: list, demandas: list, capacidades_vehiculos: list) -> dict:
-    """
-    Motor lógico usando Google OR-Tools para resolver el CVRP.
-    """
-    # 1. Configuración básica de la instancia
+def resolver_ruteo(matriz_distancias: list, demandas: list, capacidades_vehiculos: list,
+                   matriz_tiempos: list = None, tiempos_servicio: list = None, 
+                   ventanas_horarias: list = None, tipo_problema: str = "CVRP") -> dict:
+    
     num_nodos = len(matriz_distancias)
     num_vehiculos = len(capacidades_vehiculos)
-    nodo_deposito = 0 # El depósito siempre es el índice 0
+    nodo_deposito = 0
 
-    # 2. Inicialización del Administrador de Rutas y el Modelo
     manager = pywrapcp.RoutingIndexManager(num_nodos, num_vehiculos, nodo_deposito)
     routing = pywrapcp.RoutingModel(manager)
 
-    # 3. Función de Costo (Distancias)
+    # 1. Función de Costo (Distancias reales de OSRM)
     def callback_distancia(from_index, to_index):
-        nodo_origen = manager.IndexToNode(from_index)
-        nodo_destino = manager.IndexToNode(to_index)
-        # Retorna la distancia real de OSRM entre los dos nodos
-        return int(matriz_distancias[nodo_origen][nodo_destino])
+        origen = manager.IndexToNode(from_index)
+        destino = manager.IndexToNode(to_index)
+        return int(matriz_distancias[origen][destino])
 
     indice_transito = routing.RegisterTransitCallback(callback_distancia)
     routing.SetArcCostEvaluatorOfAllVehicles(indice_transito)
 
-    # 4. Dimensión de Capacidad (Restricciones del CVRP)
+    # 2. Dimensión de Capacidad (CVRP)
     def callback_demanda(from_index):
-        nodo_origen = manager.IndexToNode(from_index)
-        return demandas[nodo_origen]
+        origen = manager.IndexToNode(from_index)
+        return demandas[origen]
 
     indice_demanda = routing.RegisterUnaryTransitCallback(callback_demanda)
     routing.AddDimensionWithVehicleCapacity(
         indice_demanda,
-        0,  # Sin holgura en la capacidad
-        capacidades_vehiculos,  # Límite físico de carga inyectado
-        True,  # Empezar en cero
+        0,  # Sin holgura
+        capacidades_vehiculos,
+        True,
         'Capacidad'
     )
 
-    # 5. Estrategia de Búsqueda (Como está definido en el paper)
+    # 3. Dimensión de Tiempo (VRPTW)
+    if tipo_problema == "VRPTW":
+        def callback_tiempo(from_index, to_index):
+            origen = manager.IndexToNode(from_index)
+            destino = manager.IndexToNode(to_index)
+            # OSRM devuelve segundos, lo pasamos a minutos y sumamos el servicio de descarga
+            tiempo_viaje_minutos = int(matriz_tiempos[origen][destino] / 60)
+            tiempo_descarga = tiempos_servicio[origen]
+            return tiempo_viaje_minutos + tiempo_descarga
+
+        indice_tiempo = routing.RegisterTransitCallback(callback_tiempo)
+        
+        # Agregamos la restricción de tiempo
+        routing.AddDimension(
+            indice_tiempo,
+            120,  # Holgura (Tiempo máximo de espera si el camión llega antes que abra el cliente)
+            1440, # Tiempo máximo total por vehículo (ej. 24 hs = 1440 mins)
+            False,
+            'Tiempo'
+        )
+        dimension_tiempo = routing.GetDimensionOrDie('Tiempo')
+        
+        # Aplicamos las ventanas horarias a cada nodo
+        for i in range(num_nodos):
+            # Obtenemos inicio y fin (ej: abre al minuto 480 [8AM], cierra al minuto 600 [10AM])
+            inicio, fin = ventanas_horarias[i]
+            index = manager.NodeToIndex(i)
+            dimension_tiempo.CumulVar(index).SetRange(inicio, fin)
+
+        # Aplicamos la ventana del depósito a los vehículos al salir y volver
+        inicio_deposito, fin_deposito = ventanas_horarias[0]
+        for i in range(num_vehiculos):
+            dimension_tiempo.CumulVar(routing.Start(i)).SetRange(inicio_deposito, fin_deposito)
+            dimension_tiempo.CumulVar(routing.End(i)).SetRange(inicio_deposito, fin_deposito)
+
+    # 4. Estrategia de Búsqueda
     parametros_busqueda = pywrapcp.DefaultRoutingSearchParameters()
-    
-    # Búsqueda inicial rápida: Path Cheapest Arc
-    parametros_busqueda.first_solution_strategy = (
-        routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC)
-        
-    # Metaheurística de refinamiento: Guided Local Search
-    parametros_busqueda.local_search_metaheuristic = (
-        routing_enums_pb2.LocalSearchMetaheuristic.GUIDED_LOCAL_SEARCH)
-        
-    # Límite de tiempo computacional (5 segundos por ahora para pruebas rápidas)
+    parametros_busqueda.first_solution_strategy = routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC
+    parametros_busqueda.local_search_metaheuristic = routing_enums_pb2.LocalSearchMetaheuristic.GUIDED_LOCAL_SEARCH
     parametros_busqueda.time_limit.seconds = 5
 
-    # 6. ¡Resolver!
+    # 5. Resolver
     solucion = routing.SolveWithParameters(parametros_busqueda)
 
-    # 7. Serialización de Salida
+    # 6. Serialización de Salida
     if not solucion:
         return {"estado": "Fallo", "mensaje": "No se encontró solución factible."}
 
@@ -70,14 +94,31 @@ def resolver_cvrp(matriz_distancias: list, demandas: list, capacidades_vehiculos
         
         while not routing.IsEnd(indice):
             nodo_actual = manager.IndexToNode(indice)
-            ruta.append(nodo_actual)
             carga_ruta += demandas[nodo_actual]
+            
+            # Recolectamos la información del nodo
+            info_nodo = {"nodo_id": nodo_actual}
+            
+            # Si es VRPTW, extraemos el minuto exacto de llegada calculado por el modelo
+            if tipo_problema == "VRPTW":
+                dimension_tiempo = routing.GetDimensionOrDie('Tiempo')
+                var_tiempo = dimension_tiempo.CumulVar(indice)
+                info_nodo["minuto_llegada"] = solucion.Min(var_tiempo)
+                
+            ruta.append(info_nodo)
             
             indice_anterior = indice
             indice = solucion.Value(routing.NextVar(indice))
             distancia_ruta += routing.GetArcCostForVehicle(indice_anterior, indice, id_vehiculo)
 
-        ruta.append(manager.IndexToNode(indice)) # Agrega el depósito al final
+        # Agregamos la última parada (vuelta al depósito)
+        info_nodo_final = {"nodo_id": manager.IndexToNode(indice)}
+        if tipo_problema == "VRPTW":
+            var_tiempo = dimension_tiempo.CumulVar(indice)
+            info_nodo_final["minuto_llegada"] = solucion.Min(var_tiempo)
+            
+        ruta.append(info_nodo_final)
+
         rutas_vehiculos.append({
             "vehiculo": id_vehiculo,
             "ruta_secuencial_nodos": ruta,
