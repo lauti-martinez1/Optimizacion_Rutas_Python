@@ -6,6 +6,8 @@ import { useEnvioFormulario } from "../../hooks/useEnvioFormulario";
 import { useAuthStore } from "../../store/useAuthStore";
 import { Boton } from "../ui/Boton";
 import { Campo } from "../ui/Campo";
+import { CamposCredenciales } from "./CamposCredenciales";
+import { VALORES_CREDENCIALES_INICIALES, validarContrasenasCoinciden } from "./datosRegistro";
 
 export function FormularioRegistroEmpresa() {
   const navigate = useNavigate();
@@ -13,18 +15,18 @@ export function FormularioRegistroEmpresa() {
   const { error, enviando, enviar } = useEnvioFormulario();
 
   const [nombreEmpresa, setNombreEmpresa] = useState("");
-  const [nombreCompleto, setNombreCompleto] = useState("");
-  const [email, setEmail] = useState("");
-  const [contrasena, setContrasena] = useState("");
+  const [credenciales, setCredenciales] = useState(VALORES_CREDENCIALES_INICIALES);
 
   function manejarSubmit(evento: FormEvent) {
     evento.preventDefault();
     enviar(async () => {
+      validarContrasenasCoinciden(credenciales);
       const { usuario } = await registrarEmpresa({
         nombre_empresa: nombreEmpresa,
-        email,
-        contrasena,
-        nombre_completo: nombreCompleto,
+        email: credenciales.email,
+        contrasena: credenciales.contrasena,
+        confirmar_contrasena: credenciales.confirmarContrasena,
+        nombre_completo: credenciales.nombreCompleto,
       });
       establecerUsuario(usuario);
       navigate("/");
@@ -41,29 +43,10 @@ export function FormularioRegistroEmpresa() {
         value={nombreEmpresa}
         onChange={(e) => setNombreEmpresa(e.target.value)}
       />
-      <Campo
-        etiqueta="Tu nombre completo"
-        type="text"
-        required
-        value={nombreCompleto}
-        onChange={(e) => setNombreCompleto(e.target.value)}
-      />
-      <Campo
-        etiqueta="Email"
-        type="email"
-        autoComplete="email"
-        required
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-      />
-      <Campo
-        etiqueta="Contraseña"
-        type="password"
-        autoComplete="new-password"
-        minLength={8}
-        required
-        value={contrasena}
-        onChange={(e) => setContrasena(e.target.value)}
+      <CamposCredenciales
+        etiquetaNombre="Tu nombre completo"
+        valores={credenciales}
+        onCambiar={(campo, valor) => setCredenciales((v) => ({ ...v, [campo]: valor }))}
       />
       <Boton type="submit" cargando={enviando}>
         Crear cuenta de empresa

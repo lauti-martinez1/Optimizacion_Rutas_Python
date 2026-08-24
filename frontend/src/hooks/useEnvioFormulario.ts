@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { ErrorApi } from "../api/cliente";
+import { ErrorFormulario } from "../api/cliente";
 
 export function useEnvioFormulario() {
   const [error, setError] = useState<string | null>(null);
@@ -12,7 +12,7 @@ export function useEnvioFormulario() {
     try {
       await accion();
     } catch (e) {
-      setError(e instanceof ErrorApi ? e.message : mensajeError);
+      setError(e instanceof ErrorFormulario ? e.message : mensajeError);
     } finally {
       setEnviando(false);
     }
