@@ -1,0 +1,104 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-24T21:00:00Z",
+  "title": "Design System: Optimización de Rutas — Gran Mendoza",
+  "extensions": {
+    "colorMeta": {
+      "primario": { "role": "primary", "displayName": "Azul Confianza", "canonical": "#2E5CFF", "tonalRamp": ["#00114C", "#001F8F", "#002DCC", "#0A40FF", "#4770FF", "#85A0FF", "#B8C7FF", "#E5EBFF"] },
+      "exito": { "role": "secondary", "displayName": "Verde Progreso", "canonical": "#12B76A", "tonalRamp": ["#074628", "#0D824B", "#12BA6C", "#20E98B", "#58EFA8", "#90F4C5", "#BEF9DD", "#E8FDF3"] },
+      "peligro": { "role": "semantic-danger", "displayName": "Rojo Peligro", "canonical": "#F04438", "tonalRamp": ["#470A05", "#85120A", "#BE1A0E", "#EE291B", "#F25F54", "#F6948D", "#FAC1BD", "#FDE9E7"] },
+      "fondo": { "role": "neutral", "displayName": "Gris Base", "canonical": "#E9EAEC" },
+      "superficie": { "role": "neutral", "displayName": "Superficie", "canonical": "#F5F6F8" },
+      "texto-fuerte": { "role": "neutral", "displayName": "Texto Fuerte", "canonical": "#101828" },
+      "texto-mutado": { "role": "neutral", "displayName": "Texto Mutado", "canonical": "#667085" }
+    },
+    "typographyMeta": {
+      "title": { "displayName": "Title", "purpose": "Títulos de tarjeta (Iniciar sesión, Crear cuenta)." },
+      "body": { "displayName": "Body", "purpose": "Texto de inputs, subtítulos, descripciones." },
+      "label": { "displayName": "Label", "purpose": "Etiquetas de campo, mayúsculas trackeadas." },
+      "data": { "displayName": "Data", "purpose": "Valores numéricos en pantallas operativas (ETAs, cargas) — no usado en login/registro." }
+    },
+    "shadows": [
+      { "name": "sombra-sm", "value": "0 1px 2px rgba(16,24,40,0.04)", "purpose": "Tarjetas planas sobre fondo sólido." },
+      { "name": "sombra-md", "value": "0 2px 6px rgba(16,24,40,0.08)", "purpose": "Tarjetas de contenido, filas de lista." },
+      { "name": "sombra-boton-primario", "value": "0 4px 10px rgba(46,92,255,0.24)", "purpose": "Botones de acción principal." },
+      { "name": "sombra-boton-exito", "value": "0 4px 10px rgba(18,183,106,0.28)", "purpose": "Botones de confirmación/éxito." },
+      { "name": "sombra-tarjeta-vidrio", "value": "0 24px 48px -12px rgba(16,24,40,0.35)", "purpose": "Tarjetas de vidrio flotando sobre foto de fondo." }
+    ],
+    "motion": [
+      { "name": "ease-entrada", "value": "cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "Easing único para el momento de entrada de página (tarjeta, línea de ruta, pines)." }
+    ],
+    "breakpoints": []
+  },
+  "components": [
+    {
+      "name": "Botón Primario",
+      "kind": "button",
+      "refersTo": "button-primario",
+      "description": "Acción principal de un formulario — ancho completo, alto fijo.",
+      "html": "<button class=\"ds-btn-primario\">Iniciar sesión</button>",
+      "css": ".ds-btn-primario { width: 100%; height: 50px; border: none; border-radius: 14px; background: #2E5CFF; color: #FFFFFF; font-family: Inter, system-ui, sans-serif; font-size: 13.5px; font-weight: 700; box-shadow: 0 4px 10px rgba(46,92,255,0.24); transition: transform 0.1s ease, filter 0.15s ease, box-shadow 0.15s ease; } .ds-btn-primario:hover { filter: brightness(1.06); box-shadow: 0 6px 16px rgba(46,92,255,0.32); } .ds-btn-primario:focus-visible { outline: 2px solid #2E5CFF; outline-offset: 3px; } .ds-btn-primario:active { transform: scale(0.97); } .ds-btn-primario:disabled { opacity: 0.55; cursor: not-allowed; }"
+    },
+    {
+      "name": "Botón Secundario",
+      "kind": "button",
+      "refersTo": "button-secundario",
+      "description": "Acción secundaria (ej. cerrar sesión) — mismo tamaño que el primario, menor énfasis.",
+      "html": "<button class=\"ds-btn-secundario\">Cerrar sesión</button>",
+      "css": ".ds-btn-secundario { width: 100%; height: 50px; border: 1px solid #E4E7EC; border-radius: 14px; background: #FFFFFF; color: #101828; font-family: Inter, system-ui, sans-serif; font-size: 13.5px; font-weight: 700; transition: background 0.15s ease; } .ds-btn-secundario:hover { background: #E9EAEC; } .ds-btn-secundario:focus-visible { outline: 2px solid #2E5CFF; outline-offset: 3px; }"
+    },
+    {
+      "name": "Campo de formulario",
+      "kind": "input",
+      "refersTo": "input-campo",
+      "description": "Input de texto con label trackeada arriba y mensaje de error opcional debajo.",
+      "html": "<div class=\"ds-campo\"><label class=\"ds-campo-etiqueta\">Email</label><input class=\"ds-campo-input\" type=\"email\" /></div>",
+      "css": ".ds-campo { display: flex; flex-direction: column; gap: 6px; } .ds-campo-etiqueta { font-family: Inter, system-ui, sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #98A2B3; } .ds-campo-input { height: 46px; background: #FFFFFF; border: 1px solid #D0D5DD; border-radius: 10px; padding: 0 14px; font-family: Inter, system-ui, sans-serif; font-size: 14px; color: #101828; outline: none; transition: border-color 0.15s ease, box-shadow 0.15s ease; } .ds-campo-input:focus { border-color: #2E5CFF; box-shadow: 0 0 0 3px rgba(46,92,255,0.15); }"
+    },
+    {
+      "name": "Tarjeta de vidrio",
+      "kind": "card",
+      "refersTo": "card-tarjeta",
+      "description": "Tarjeta translúcida con blur, usada cuando el fondo es una foto (login, registro).",
+      "html": "<div class=\"ds-tarjeta-vidrio\"><h1 class=\"ds-tarjeta-titulo\">Iniciar sesión</h1></div>",
+      "css": ".ds-tarjeta-vidrio { width: 100%; max-width: 400px; background: rgba(245,246,248,0.86); backdrop-filter: blur(20px) saturate(140%); -webkit-backdrop-filter: blur(20px) saturate(140%); border: 1px solid rgba(255,255,255,0.5); border-radius: 16px; box-shadow: 0 24px 48px -12px rgba(16,24,40,0.35); padding: 32px 28px; } .ds-tarjeta-titulo { font-family: Inter, system-ui, sans-serif; font-size: 20px; font-weight: 700; color: #101828; margin: 0; }"
+    },
+    {
+      "name": "Overlay de Ruta",
+      "kind": "custom",
+      "refersTo": "overlay-ruta",
+      "description": "Componente de firma: línea de ruta SVG con pin de inicio (oscuro) y pin de destino (azul, con pulso), animado una sola vez al montar. Misma convención visual que la pantalla operativa 'Ruta Activa'.",
+      "html": "<svg class=\"ds-overlay-ruta\" viewBox=\"0 0 400 800\" preserveAspectRatio=\"xMidYMid slice\" aria-hidden=\"true\"><path d=\"M 40 700 C 140 640, 90 460, 220 400 C 340 345, 260 180, 360 90\" fill=\"none\" stroke=\"#2E5CFF\" stroke-width=\"4\" stroke-linecap=\"round\"/><circle cx=\"40\" cy=\"700\" r=\"8\" fill=\"#101828\"/><circle cx=\"360\" cy=\"90\" r=\"9\" fill=\"#2E5CFF\"/></svg>",
+      "css": ".ds-overlay-ruta { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; } .ds-overlay-ruta path { stroke-dasharray: 900; stroke-dashoffset: 900; animation: ds-trazar-ruta 1.6s cubic-bezier(0.16,1,0.3,1) 0.15s forwards; } @keyframes ds-trazar-ruta { to { stroke-dashoffset: 0; } }"
+    }
+  ],
+  "narrative": {
+    "northStar": "La Libreta del Chofer",
+    "overview": "Directa y sin vueltas — como las anotaciones rápidas que hace un chofer entre entregas. La jerarquía de lectura siempre gana: un chofer con poco tiempo tiene que entender la pantalla de un vistazo, sin ambigüedad sobre qué botón apretar o qué campo falta completar. Dentro de esa claridad, el acabado es pulido y moderno — no austero: profundidad real (blur, sombras con offset), transiciones suaves, un único momento de movimiento autoral por pantalla en vez de efectos sueltos.",
+    "keyCharacteristics": [
+      "Jerarquía de lectura por sobre el ornamento — el chofer entiende en segundos.",
+      "Acabado pulido: vidrio (backdrop-filter) y sombras con profundidad real, no planas.",
+      "Un único acento de color por pantalla — el azul no compite consigo mismo.",
+      "Español en toda la interfaz, sin excepción."
+    ],
+    "rules": [
+      { "name": "The One Accent Rule", "body": "El azul primario es la única marca de color libre en una pantalla; el verde solo aparece cuando hay algo genuinamente completado o exitoso que señalar.", "section": "colors" },
+      { "name": "The No-Costume Rule", "body": "JetBrains Mono aparece solo donde hay un número real que leer — nunca para que un bloque de texto 'se vea técnico'.", "section": "typography" },
+      { "name": "The Single Elevation Rule", "body": "Una tarjeta declara su elevación con sombra o con borde marcado, nunca ambos compitiendo. El borde de una tarjeta de vidrio es legibilidad de canto, no elevación.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do usar el azul confianza como único acento libre por pantalla; el verde solo para éxito/avance real.",
+      "Do declarar la elevación de una tarjeta con sombra sola.",
+      "Do usar JetBrains Mono únicamente cuando hay un valor numérico real que mostrar.",
+      "Do dar a cada anillo de foco un tratamiento temático, nunca el outline nativo del navegador sin tocar.",
+      "Do limitar el movimiento autoral a un momento por pantalla, orquestado."
+    ],
+    "donts": [
+      "Don't usar gradientes en texto para dar énfasis.",
+      "Don't usar emoji o glifos Unicode como sistema de íconos.",
+      "Don't combinar borde grueso + sombra ancha en la misma tarjeta compitiendo por elevación.",
+      "Don't usar sombras de offset cero como sustituto de profundidad real.",
+      "Don't reutilizar el rojo de peligro fuera de errores/estados destructivos."
+    ]
+  }
+}
