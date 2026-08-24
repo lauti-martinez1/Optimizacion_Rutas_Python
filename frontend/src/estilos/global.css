@@ -1,0 +1,39 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap');
+@import './tokens.css';
+
+* {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--color-fondo);
+  font-family: var(--fuente-sans);
+  color: var(--color-texto-fuerte);
+}
+
+input {
+  font-family: var(--fuente-sans);
+}
+
+input::placeholder {
+  color: var(--color-texto-tenue);
+}
+
+a {
+  color: var(--color-primario);
+  text-decoration: none;
+}
+
+a:hover {
+  color: var(--color-primario-hover);
+}
+
+button {
+  font-family: var(--fuente-sans);
+}
