@@ -1,0 +1,127 @@
+from fastapi import APIRouter, Depends, HTTPException, Response
+from sqlalchemy.orm import Session
+
+from api import schemas_auth as schemas
+from api.dependencies import get_db, obtener_usuario_actual, requiere_admin
+from core.config import settings
+from core.seguridad import crear_token_acceso, hashear_contrasena, verificar_contrasena
+from db import crud
+from db.modelos import RolUsuario, Usuario
+
+router = APIRouter(prefix="/api/v1/auth", tags=["Autenticación"])
+
+NOMBRE_COOKIE = "token_acceso"
+
+
+def _setear_cookie_sesion(response: Response, usuario: Usuario) -> None:
+    token = crear_token_acceso(usuario.id, usuario.rol.value, usuario.empresa_id)
+    response.set_cookie(
+        key=NOMBRE_COOKIE,
+        value=token,
+        httponly=True,
+        secure=settings.entorno == "produccion",
+        samesite="lax",
+        max_age=settings.jwt_expire_minutes * 60,
+        path="/",
+    )
+
+
+@router.post(
+    "/registro/chofer-independiente", response_model=schemas.UsuarioPublico, status_code=201
+)
+def registrar_chofer_independiente(
+    datos: schemas.RegistroChoferIndependiente, response: Response, db: Session = Depends(get_db)
+):
+    if crud.obtener_usuario_por_email(db, datos.email):
+        raise HTTPException(status_code=409, detail="El email ya está registrado.")
+
+    usuario = crud.crear_usuario(
+        db,
+        email=datos.email,
+        contrasena_hash=hashear_contrasena(datos.contrasena),
+        nombre_completo=datos.nombre_completo,
+        rol=RolUsuario.CHOFER,
+        empresa_id=None,
+    )
+    _setear_cookie_sesion(response, usuario)
+    return usuario
+
+
+@router.post("/registro/empresa", response_model=schemas.RegistroEmpresaResponse, status_code=201)
+def registrar_empresa(
+    datos: schemas.RegistroEmpresa, response: Response, db: Session = Depends(get_db)
+):
+    if crud.obtener_usuario_por_email(db, datos.email):
+        raise HTTPException(status_code=409, detail="El email ya está registrado.")
+
+    empresa = crud.crear_empresa(db, nombre=datos.nombre_empresa)
+    usuario = crud.crear_usuario(
+        db,
+        email=datos.email,
+        contrasena_hash=hashear_contrasena(datos.contrasena),
+        nombre_completo=datos.nombre_completo,
+        rol=RolUsuario.ADMIN,
+        empresa_id=empresa.id,
+    )
+    _setear_cookie_sesion(response, usuario)
+    return schemas.RegistroEmpresaResponse(usuario=usuario, empresa=empresa)
+
+
+@router.post("/registro/chofer-invitado", response_model=schemas.UsuarioPublico, status_code=201)
+def registrar_chofer_invitado(
+    datos: schemas.RegistroChoferInvitado, response: Response, db: Session = Depends(get_db)
+):
+    invitacion = crud.obtener_codigo_invitacion(db, datos.codigo_invitacion)
+    if invitacion is None:
+        raise HTTPException(status_code=404, detail="Código de invitación inexistente.")
+    if invitacion.usado:
+        raise HTTPException(status_code=409, detail="El código de invitación ya fue utilizado.")
+    if crud.obtener_usuario_por_email(db, datos.email):
+        raise HTTPException(status_code=409, detail="El email ya está registrado.")
+
+    usuario = crud.crear_usuario(
+        db,
+        email=datos.email,
+        contrasena_hash=hashear_contrasena(datos.contrasena),
+        nombre_completo=datos.nombre_completo,
+        rol=RolUsuario.CHOFER,
+        empresa_id=invitacion.empresa_id,
+    )
+    crud.marcar_codigo_usado(db, invitacion, usuario.id)
+    _setear_cookie_sesion(response, usuario)
+    return usuario
+
+
+@router.post("/login", response_model=schemas.UsuarioPublico)
+def iniciar_sesion(datos: schemas.LoginRequest, response: Response, db: Session = Depends(get_db)):
+    usuario = crud.obtener_usuario_por_email(db, datos.email)
+    if usuario is None or not verificar_contrasena(datos.contrasena, usuario.contrasena_hash):
+        raise HTTPException(status_code=401, detail="Email o contraseña incorrectos.")
+    if not usuario.activo:
+        raise HTTPException(status_code=401, detail="Cuenta inactiva.")
+
+    _setear_cookie_sesion(response, usuario)
+    return usuario
+
+
+@router.post("/logout", response_model=schemas.MensajeResponse)
+def cerrar_sesion(response: Response):
+    response.delete_cookie(key=NOMBRE_COOKIE, path="/")
+    return schemas.MensajeResponse(mensaje="Sesión cerrada.")
+
+
+@router.get("/me", response_model=schemas.UsuarioPublico)
+def usuario_actual(usuario: Usuario = Depends(obtener_usuario_actual)):
+    return usuario
+
+
+@router.post("/invitaciones", response_model=schemas.CodigoInvitacionPublico, status_code=201)
+def generar_invitacion(db: Session = Depends(get_db), admin: Usuario = Depends(requiere_admin)):
+    return crud.crear_codigo_invitacion(
+        db, empresa_id=admin.empresa_id, creado_por_usuario_id=admin.id
+    )
+
+
+@router.get("/invitaciones", response_model=list[schemas.CodigoInvitacionPublico])
+def listar_invitaciones(db: Session = Depends(get_db), admin: Usuario = Depends(requiere_admin)):
+    return crud.listar_codigos_invitacion(db, empresa_id=admin.empresa_id)
