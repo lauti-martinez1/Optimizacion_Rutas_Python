@@ -12,7 +12,9 @@ Resuelve dos variantes del problema:
 - **CVRP** (Capacitated VRP): rutas respetando la capacidad de carga de cada vehículo.
 - **VRPTW** (VRP with Time Windows): CVRP + ventanas horarias por cliente y depósito.
 
-**Estado actual**: prototipo funcional (API + solver + benchmarks), sin gestión de dependencias, tests, linting, configuración ni Docker todavía. Este documento describe tanto lo que ya existe como el roadmap para llevarlo al diseño objetivo. No asumas que las secciones 3, 6 y 7 ya están implementadas — están marcadas explícitamente como objetivo.
+**Evolución del alcance**: además del motor VRP (el aporte académico del paper), el proyecto está creciendo hacia una app web PWA real para choferes de reparto — con cuentas de usuario, empresas de distribución que gestionan flotas de choferes, y (a futuro) planes de suscripción. El motor VRP y su validación empírica siguen siendo el núcleo del paper; la capa de cuentas/auth/frontend es la plataforma que lo va a poner en manos de usuarios reales. Ver §10 para el estado de esta capa.
+
+**Estado actual**: el motor VRP (API + solver + benchmarks) es un prototipo funcional. La capa de fundaciones (`uv`, `core/config.py`, Docker para Postgres, `pytest`) y el sistema de autenticación (backend + frontend) ya están implementados — ver §3 y §10. Sigue pendiente: self-hostear OSRM, generalizar el solver de benchmarks (ítem 5 del roadmap), y el dataset del Gran Mendoza (ítem 9).
 
 ## 2. Stack tecnológico
 
@@ -27,46 +29,61 @@ Resuelve dos variantes del problema:
 | Datos de tránsito | **OSRM** (self-hosted vía Docker, perfil `driving`) | Matriz de distancias (metros) y tiempos (segundos) reales, no euclidianas. |
 | Contenedores | Docker + docker-compose | Levanta OSRM (con extracto de Mendoza/Argentina) y, opcionalmente, la API. |
 | Config | **pydantic-settings** + `.env` | Nada de URLs o parámetros hardcodeados. |
-| Tests | **pytest** | Unit tests de solver/cliente OSRM + al menos un test de integración de la API. |
-| Lint/formato | **ruff** | Lint y formateo en una sola herramienta, config en `pyproject.toml`. |
+| Tests | **pytest** | Suite de auth (`tests/test_auth.py`) contra una DB Postgres de test separada. Faltan tests de `routing/solver.py` y `services/osrm_client.py` (roadmap ítem 6, parcial). |
+| Lint/formato | **ruff** | Config en `pyproject.toml`. `alembic/versions/` excluido (migraciones autogeneradas). |
+| Base de datos | **PostgreSQL** (vía Docker) | Cuentas de usuario, empresas, códigos de invitación. El motor VRP en sí sigue siendo stateless. |
+| ORM / migraciones | **SQLAlchemy 2.0** (sync) + **Alembic** | Sync, no async — consistente con el resto del backend (OR-Tools/OSRM ya son sync). |
+| Auth | **passlib[bcrypt]** + **python-jose** | Hash de contraseñas + JWT firmado en cookie httpOnly (no localStorage). |
+| Frontend | **React 19 + Vite + TypeScript** | Monorepo en `frontend/`. |
+| Estado global (frontend) | **Zustand** | Sin `persist` — la sesión se re-hidrata siempre desde `GET /api/v1/auth/me`. |
+| Ruteo (frontend) | **react-router-dom** | |
 
-No uses otras librerías de optimización, otro framework web, ni otro gestor de paquetes sin discutirlo antes — el stack ya está decidido.
+No uses otras librerías de optimización, otro framework web, otro ORM, ni otro gestor de paquetes (backend o frontend) sin discutirlo antes — el stack ya está decidido.
 
-## 3. Arquitectura objetivo
-
-Estructura de directorios a la que el proyecto debe converger (ver roadmap en §8 para el orden de migración; hoy varias de estas piezas todavía no existen):
+## 3. Arquitectura (estado real)
 
 ```
-main.py                       # entrypoint: crea la app FastAPI, monta routers
+main.py                       # entrypoint: crea la app FastAPI, CORS, monta routers
 core/
-  config.py                   # Settings (pydantic-settings): OSRM_BASE_URL, tiempo límite del solver, etc.
+  config.py                   # Settings (pydantic-settings): OSRM, solver, DATABASE_URL, JWT_*, frontend_url
+  seguridad.py                 # hash de contraseñas (passlib) + crear/decodificar JWT (python-jose)
+db/
+  base.py                      # Base declarativa SQLAlchemy + naming convention (constraints estables en Alembic)
+  sesion.py                    # engine, SessionLocal, get_db()
+  modelos.py                   # Empresa, Usuario, CodigoInvitacion (+ enums RolUsuario, PlanSuscripcion)
+  crud.py                      # funciones de acceso a datos (crear_*, obtener_*, listar_*)
 api/
-  schemas.py                  # Cliente, Deposito, Vehiculo, VentanaHoraria, Coordenada, PeticionRutas
-  routes.py                   # POST /api/v1/optimizar y futuros endpoints
+  schemas.py                   # Cliente, Deposito, Vehiculo, VentanaHoraria, Coordenada, PeticionRutas (VRP)
+  routes.py                    # POST /api/v1/optimizar
+  schemas_auth.py               # Pydantic de registro/login/me/invitaciones
+  routes_auth.py                 # 8 endpoints bajo /api/v1/auth (ver §10)
+  dependencies.py                # get_db, obtener_usuario_actual, requiere_admin
 routing/
-  solver.py                   # resolver_ruteo(): el modelo OR-Tools, generalizado para reuso en benchmarks
+  solver.py                    # resolver_ruteo(): el modelo OR-Tools (lee settings.solver_time_limit_segundos)
 services/
-  osrm_client.py               # obtener_matriz_osrm(): URL desde Settings, no hardcodeada
+  osrm_client.py                # obtener_matriz_osrm(): URL desde settings.osrm_base_url
 scripts/
-  benchmark_solomon.py         # benchmark VRPTW, reusa routing/solver.py
-  benchmark_uchoa.py           # benchmark CVRP, reusa routing/solver.py
-  compare_pyvrp.py             # comparación OR-Tools vs PyVRP (planificado)
-  generar_dataset_mendoza.py   # genera el dataset sintético georreferenciado (planificado)
+  benchmark_solomon.py          # benchmark VRPTW — TODAVÍA duplica lógica de routing/solver.py (ver §9)
+  benchmark_uchoa.py            # benchmark CVRP — ídem
+  compare_pyvrp.py              # comparación OR-Tools vs PyVRP (planificado, roadmap ítem 8)
+  generar_dataset_mendoza.py    # dataset sintético georreferenciado (planificado, roadmap ítem 9)
 data/
-  solomon/                     # instancias VRPTW (Solomon), ya existe
-  uchoa/                       # instancias CVRP (Uchoa et al.), ya existe
-  mendoza/                     # dataset sintético del Gran Mendoza (planificado)
+  solomon/                      # instancias VRPTW (Solomon), ya existe
+  uchoa/                        # instancias CVRP (Uchoa et al.), ya existe
+  mendoza/                      # dataset sintético del Gran Mendoza (planificado)
+alembic/
+  env.py                        # configurado con settings.database_url + metadata de db.modelos
+  versions/                     # migraciones — excluidas de ruff, no reescribir su estilo a mano
 tests/
-  test_solver.py
-  test_osrm_client.py
-  test_api.py
-docker-compose.yml             # servicio osrm (+ opcionalmente api)
-pyproject.toml
-uv.lock
-.env.example
+  conftest.py                   # DB Postgres de test separada (sufijo _test), TestClient con get_db overrideado
+  test_auth.py                  # 3 registros + login/logout/me + invitaciones (10 tests)
+frontend/                       # PWA React+Vite+TS — ver §10
+docker-compose.yml              # servicio postgres (osrm queda comentado, pendiente roadmap ítem 4)
+pyproject.toml / uv.lock
+.env.example / .env             # .env gitignored
 ```
 
-**Estado real hoy**: `main.py` (raíz) contiene todos los schemas Pydantic y el endpoint juntos; `routing/solver.py` y `services/osrm_client.py` ya existen tal cual se describen arriba. No hay `core/`, `api/`, `tests/`, `pyproject.toml`, `docker-compose.yml` ni `.env` todavía.
+Todo lo de arriba ya existe y funciona (`uv sync && docker compose up -d postgres && uv run alembic upgrade head && uv run pytest` corre en verde). Lo que falta del roadmap original: self-hostear OSRM (ítem 4), generalizar el solver para benchmarks (ítem 5), `pyvrp`/dataset Mendoza (ítems 8-9).
 
 ## 4. Convenciones de código
 
@@ -76,6 +93,7 @@ uv.lock
 - **Comentarios**: solo cuando expliquen un *por qué* no obvio (una convención OSRM rara, un valor mágico, una restricción del solver). No documentes *qué* hace el código si el nombre ya lo dice. Nada de docstrings largos — una línea si aporta.
 - **ruff** es la única herramienta de lint/formato una vez configurada (§8). No introduzcas black/flake8/isort en paralelo.
 - Los benchmarks y el solver de producción deben compartir la misma lógica de modelado OR-Tools (ver gap en §9) — no dupliques el armado del `RoutingModel` en un script nuevo si `routing/solver.py` ya lo resuelve.
+- **Frontend (`frontend/`)**: mismo idioma español en nombres de carpetas, componentes, funciones y variables (`FormularioLogin`, `useAuthStore`, `registrarChoferIndependiente`, `cargarSesion`). PascalCase para componentes React, camelCase para el resto — igual que el backend, no mezclar inglés salvo términos propios de la librería (`props`, `state`, hooks de React/Zustand). TypeScript con tipos completos (`tipos/auth.ts` espeja los schemas Pydantic de `api/schemas_auth.py` — si cambia uno, actualizar el otro a mano, no hay generación automática todavía).
 
 ## 5. Dominio del problema (semántica ya establecida en el código)
 
@@ -91,48 +109,81 @@ Para no reinventar convenciones al tocar `routing/solver.py` o `services/osrm_cl
 - Búsqueda: `PATH_CHEAPEST_ARC` como estrategia inicial + `GUIDED_LOCAL_SEARCH` como metaheurística, con `time_limit.seconds` fijo (hoy 5s en el solver de producción, 60s en los benchmarks — ver §9, debería ser configurable en vez de estar duplicado con valores distintos).
 - Si el solver no encuentra solución factible, `resolver_ruteo` devuelve `{"estado": "Fallo", "mensaje": ...}` en vez de tirar una excepción — el endpoint lo traduce a HTTP 400.
 
-## 6. Configuración (objetivo, no implementado aún)
+## 6. Configuración (`core/config.py`, implementado)
 
-Todo parámetro que hoy está hardcodeado debe migrar a `core/config.py` (una clase `Settings` de `pydantic-settings`, leída desde `.env`), con un `.env.example` versionado documentando cada variable. Como mínimo:
+Clase `Settings` (`pydantic-settings`), leída desde `.env` (ver `.env.example` versionado). Variables actuales:
 
-- `OSRM_BASE_URL` — hoy hardcodeado en `services/osrm_client.py` como `http://router.project-osrm.org`. Debe apuntar a la instancia local levantada por `docker-compose.yml` en desarrollo/benchmarking.
-- `SOLVER_TIME_LIMIT_SEGUNDOS` — hoy hardcodeado en 5 dentro de `routing/solver.py` (y en 60 en cada script de benchmark, con su propio valor). Un único parámetro configurable, con override explícito en los benchmarks si necesitan más tiempo.
+- `OSRM_BASE_URL` — hoy sigue apuntando al servidor demo público de OSRM (default `http://router.project-osrm.org`). Pasará a la instancia local de `docker-compose.yml` recién en el roadmap ítem 4 (todavía no implementado).
+- `SOLVER_TIME_LIMIT_SEGUNDOS` — default 5. Los benchmarks siguen con su propio valor hardcodeado en 60 (no leen `Settings` — ver gap en §9, roadmap ítem 5 sin resolver).
+- `DATABASE_URL` — sin default, la app falla al arrancar si falta (fail-fast). Formato `postgresql+psycopg://...`.
+- `JWT_SECRET_KEY` — sin default, ídem. `JWT_ALGORITHM` (default `HS256`), `JWT_EXPIRE_MINUTES` (default 10080 = 7 días).
+- `ENTORNO` (`desarrollo` | `produccion`) — controla el flag `secure` de la cookie de sesión.
+- `FRONTEND_URL` — usado en `CORSMiddleware` (`allow_origins`), debe matchear el origin real del frontend.
 
 No hardcodees URLs, timeouts ni límites nuevos — si es un valor que alguien podría querer cambiar sin tocar código, va en `Settings`.
 
-## 7. Cómo correr el proyecto (flujo objetivo)
+## 7. Cómo correr el proyecto
 
 ```bash
+# --- Backend ---
 uv sync                                  # instala dependencias desde pyproject.toml/uv.lock
-docker compose up -d osrm                # levanta OSRM local con el extracto de Mendoza
-uv run uvicorn main:app --reload         # levanta la API en desarrollo
-uv run pytest                            # corre la suite de tests
+docker compose up -d postgres            # levanta Postgres (OSRM todavía no está dockerizado, ver §9)
+uv run alembic upgrade head              # aplica las migraciones (crea empresas/usuarios/codigos_invitacion)
+uv run uvicorn main:app --reload         # levanta la API en http://localhost:8000
+uv run pytest                            # corre la suite de tests (auth; falta solver/osrm_client)
 uv run ruff check . && uv run ruff format .   # lint + formato
 uv run python scripts/benchmark_solomon.py    # benchmark VRPTW
 uv run python scripts/benchmark_uchoa.py      # benchmark CVRP
-uv run python scripts/compare_pyvrp.py        # comparación OR-Tools vs PyVRP
+uv run python scripts/compare_pyvrp.py        # comparación OR-Tools vs PyVRP (planificado)
+
+# --- Frontend ---
+cd frontend
+npm install
+npm run dev                              # http://localhost:5173
 ```
 
-Hoy (antes de la migración a uv/Docker) el proyecto se corre con un venv manual y `python main.py`/`uvicorn main:app` desde la raíz del repo, con `python` apuntando a un intérprete que tenga `fastapi`, `pydantic`, `ortools` y `requests` instalados a mano.
+Nueva migración tras cambiar `db/modelos.py`: `uv run alembic revision --autogenerate -m "descripción"` y revisar el archivo generado a mano antes de `alembic upgrade head` (Alembic no siempre detecta bien cambios de tipo/constraint).
 
-## 8. Roadmap accionable
+## 8. Roadmap accionable (motor VRP / paper)
 
-Basado en las secciones 4.3 y 5 del paper (dataset, validación, métricas empíricas) más la deuda técnica actual. Orden sugerido — cada ítem es una sesión de código razonable:
+Basado en las secciones 4.3 y 5 del paper (dataset, validación, métricas empíricas) más la deuda técnica actual.
 
-1. Migrar a `uv`: crear `pyproject.toml`, generar `uv.lock`, fijar Python 3.12.
-2. Reestructurar `main.py`: separar en `api/schemas.py`, `api/routes.py`, `core/config.py`; `main.py` queda solo como entrypoint. `routing/` y `services/` se mantienen donde están.
-3. Introducir `core/config.py` con `pydantic-settings` + `.env.example` (ver §6).
-4. Self-hostear OSRM: `docker-compose.yml` con el servicio OSRM usando un extracto `.osm.pbf` de Mendoza/Argentina preprocesado (`osrm-extract` + `osrm-partition` + `osrm-customize`), apuntado desde `OSRM_BASE_URL`.
-5. Generalizar `routing/solver.py` para que reciba matrices de cualquier origen (OSRM real o distancias euclidianas de benchmarks) sin duplicar el armado del `RoutingModel`; migrar `scripts/benchmark_solomon.py` y `scripts/benchmark_uchoa.py` para que lo importen en vez de reimplementarlo.
-6. Agregar `pytest`: tests unitarios de `routing/solver.py` (casos CVRP/VRPTW con resultado conocido), `services/osrm_client.py` (mockeando `requests`), y un test de integración del endpoint `/api/v1/optimizar`.
-7. Adoptar `ruff` (lint + format), configurado en `pyproject.toml`.
-8. Agregar `pyvrp` como dependencia y `scripts/compare_pyvrp.py`: correr las mismas instancias (Solomon/Uchoa/Mendoza) contra OR-Tools y PyVRP, comparando gap y tiempo de cómputo.
-9. Generar el dataset sintético georreferenciado del Gran Mendoza (`scripts/generar_dataset_mendoza.py`): 30-80 nodos con coordenadas dentro de un bounding box real del Gran Mendoza (validadas contra la red vial vía OSRM), demandas y ventanas horarias simuladas de forma realista (horario comercial local, posible corte tipo siesta).
-10. Recolectar métricas empíricas exhaustivas sobre las tres fuentes de datos (Uchoa, Solomon/Homberger, Mendoza sintético): distancia total recorrida, tiempo de ejecución, número de vehículos usados, cumplimiento de ventanas horarias, y gap % vs. Best Known Solutions — documentando el hardware usado en los ensayos (pedido explícito de la Sección 5 del paper).
+1. ~~Migrar a `uv`~~ ✅ hecho.
+2. ~~Reestructurar `main.py` en `api/`/`core/`~~ ✅ hecho.
+3. ~~Introducir `core/config.py`~~ ✅ hecho (ver §6).
+4. Self-hostear OSRM: `docker-compose.yml` con el servicio OSRM usando un extracto `.osm.pbf` de Mendoza/Argentina preprocesado (`osrm-extract` + `osrm-partition` + `osrm-customize`), apuntado desde `OSRM_BASE_URL`. **Pendiente** — hoy `docker-compose.yml` solo levanta Postgres, el servicio `osrm` está comentado como placeholder.
+5. Generalizar `routing/solver.py` para que reciba matrices de cualquier origen (OSRM real o distancias euclidianas de benchmarks) sin duplicar el armado del `RoutingModel`; migrar `scripts/benchmark_solomon.py` y `scripts/benchmark_uchoa.py` para que lo importen en vez de reimplementarlo. **Pendiente**, sigue siendo el gap original.
+6. ~~Agregar `pytest`~~ parcial: hecho para auth (`tests/test_auth.py`), **falta** `test_solver.py` y `test_osrm_client.py`.
+7. ~~Adoptar `ruff`~~ ✅ hecho, configurado en `pyproject.toml` (excluye `alembic/versions/`, ignora `B008` por el patrón `Depends()` de FastAPI).
+8. Agregar `pyvrp` y `scripts/compare_pyvrp.py`. **Pendiente**.
+9. Generar el dataset sintético georreferenciado del Gran Mendoza (`scripts/generar_dataset_mendoza.py`). **Pendiente**.
+10. Recolectar métricas empíricas exhaustivas (Uchoa, Solomon/Homberger, Mendoza sintético) documentando hardware. **Pendiente**.
 
 ## 9. Gaps conocidos (no "arreglar" por sorpresa sin avisar)
 
-- `scripts/benchmark_solomon.py` y `scripts/benchmark_uchoa.py` **duplican** la lógica de modelado de `routing/solver.py` con parámetros de búsqueda propios (estrategias iniciales distintas, `time_limit` de 60s vs 5s, escalado de distancias por separado). Se resuelve en el ítem 5 del roadmap — no es un bug, es deuda técnica ya identificada.
+- `scripts/benchmark_solomon.py` y `scripts/benchmark_uchoa.py` **duplican** la lógica de modelado de `routing/solver.py` con parámetros de búsqueda propios (estrategias iniciales distintas, `time_limit` de 60s vs 5s, escalado de distancias por separado) y **no leen `core/config.py`**. Se resuelve en el ítem 5 del roadmap — no es un bug, es deuda técnica ya identificada.
 - `services/osrm_client.py` apunta hoy al **servidor demo público** de OSRM (`router.project-osrm.org`), que tiene rate-limiting y no está pensado para uso intensivo/producción. Se reemplaza por una instancia self-hosted en el ítem 4.
 - No hay dataset del Gran Mendoza todavía — el título de la API ("Gran Mendoza") es aspiracional hasta el ítem 9 del roadmap.
-- No hay `response_model` tipado en el endpoint (devuelve un `dict` plano) ni validación declarativa de las reglas cruzadas VRPTW (hoy se valida a mano dentro del handler). No es prioritario resolverlo fuera del roadmap salvo que se decida explícitamente.
+- No hay `response_model` tipado en el endpoint `/api/v1/optimizar` (devuelve un `dict` plano) ni validación declarativa de las reglas cruzadas VRPTW (hoy se valida a mano dentro del handler). No es prioritario resolverlo fuera del roadmap salvo que se decida explícitamente.
+- **Bug pre-existente conocido, no corregido todavía**: en `api/routes.py`, si `resolver_ruteo` devuelve `{"estado": "Fallo"}`, el `HTTPException(400, ...)` que se lanza queda dentro del mismo `try` que captura `except Exception` más abajo — como `HTTPException` hereda de `Exception`, termina reconvertido en un 500 en vez de un 400. Es un bug heredado de antes de esta sesión; no se tocó al reestructurar `main.py` en `api/routes.py` para no mezclar refactor con fix de comportamiento sin avisar. Corregirlo es un cambio de una línea (`except HTTPException: raise` antes del `except Exception` genérico) cuando se decida abordarlo.
+
+## 10. Sistema de cuentas / autenticación (nuevo, implementado)
+
+Capa nueva para soportar la app PWA (más allá del motor VRP puro). Backend: `db/modelos.py`, `api/routes_auth.py`, `core/seguridad.py`. Frontend: `frontend/src/store/useAuthStore.ts`, `frontend/src/paginas/{Login,Registro}.tsx`.
+
+**Modelo de cuentas**:
+- `Empresa` (1) —N— `Usuario` vía `Usuario.empresa_id` (nullable). Un `Usuario` es o bien **chofer independiente** (`rol=chofer`, `empresa_id=NULL`) o **chofer de una empresa** (`rol=chofer`, `empresa_id` seteado) o **admin de una empresa** (`rol=admin`, siempre con `empresa_id`).
+- Vínculo chofer↔empresa: **código de invitación de un solo uso** (`CodigoInvitacion`, 8 caracteres alfanuméricos). Lo genera un admin (`POST /api/v1/auth/invitaciones`), lo consume un chofer al registrarse (`POST /api/v1/auth/registro/chofer-invitado`); una vez usado (`usado=True`) no se puede reutilizar.
+- `plan`/`fecha_fin_prueba` existen en `Empresa` y `Usuario` (modelo freemium futuro) pero **sin enforcement real todavía** — no hay billing (Stripe/MercadoPago) implementado ni planificado para esta etapa.
+
+**Auth/sesión**: JWT (claims `sub`, `rol`, `empresa_id`, `iat`, `exp`) en cookie `httponly` + `samesite=lax`, expira a los 7 días (`JWT_EXPIRE_MINUTES`). `obtener_usuario_actual` (en `api/dependencies.py`) decodifica el token y **siempre revalida contra la DB** (no confía ciegamente en los claims), así un `activo=False` surte efecto inmediato. No hay refresh token — al expirar, re-login manual. No hay rate limiting ni bloqueo de cuenta tras intentos fallidos de login todavía.
+
+**Endpoints** (`/api/v1/auth`, prefijo): `POST /registro/chofer-independiente`, `POST /registro/empresa`, `POST /registro/chofer-invitado`, `POST /login`, `POST /logout`, `GET /me`, `POST /invitaciones` (rol admin), `GET /invitaciones` (rol admin).
+
+**Frontend**: `frontend/` es un proyecto Vite+React+TS separado (propio `package.json`/`node_modules`, no gestionado por `uv`). Sin `localStorage` para la sesión — el store de Zustand (`useAuthStore`) siempre re-hidrata vía `GET /me` al montar la app. Estilos: `frontend/src/estilos/tokens.css` — colores/tipografía extraídos de un mockup `Active Route View.dc.html` diseñado en Claude Design (azul `#2E5CFF`, verde éxito `#12B76A`, `Inter`+`JetBrains Mono`). **Importante**: ese mismo proyecto de Claude Design tiene un design system separado ("Trazo", tema oscuro/verde lima, terminología de levantamiento olímpico) que **no tiene relación con esta app** — no confundirlos ni usar esos tokens.
+
+**Fuera de alcance todavía** (no construir por sorpresa sin que se pida explícitamente):
+- Dashboard de empresa (ver/listar choferes, copiar códigos de invitación desde la UI — hoy solo existe el endpoint, se prueba por API).
+- Asignación de rutas por parte de la empresa a un chofer específico.
+- El resto de las pantallas del mockup `Active Route View.dc.html`: Ruta Activa, Detalle de Parada, Prueba de Entrega (POD), Mi Flota, Incidencias, Resumen de cierre. Hoy el frontend solo tiene Login/Registro/una pantalla de inicio placeholder (`Inicio.tsx`) que confirma la sesión y ofrece logout.
+- Billing/suscripciones reales, verificación de email, PWA offline/service worker/manifest.json.
