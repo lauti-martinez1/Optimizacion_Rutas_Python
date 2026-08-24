@@ -57,7 +57,17 @@ def db_session(engine_test):
 @pytest.fixture
 def client(db_session):
     def _get_db_test():
-        yield db_session
+        # Espeja el contrato de get_db() real (commit al salir bien, rollback
+        # si algo revienta) para que un bug de manejo de transacciones se vea
+        # acá, no solo en producción. A diferencia de get_db(), no cierra la
+        # sesión entre requests — la reutilizamos durante todo el test y la
+        # cierra el fixture db_session.
+        try:
+            yield db_session
+            db_session.commit()
+        except Exception:
+            db_session.rollback()
+            raise
 
     app.dependency_overrides[get_db] = _get_db_test
     with TestClient(app) as cliente_test:

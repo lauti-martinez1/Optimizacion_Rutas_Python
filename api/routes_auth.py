@@ -1,4 +1,7 @@
+from collections.abc import Callable
+
 from fastapi import APIRouter, Depends, HTTPException, Response
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from api import schemas_auth as schemas
@@ -6,11 +9,13 @@ from api.dependencies import get_db, obtener_usuario_actual, requiere_admin
 from core.config import settings
 from core.seguridad import crear_token_acceso, hashear_contrasena, verificar_contrasena
 from db import crud
-from db.modelos import RolUsuario, Usuario
+from db.modelos import Usuario
 
 router = APIRouter(prefix="/api/v1/auth", tags=["Autenticación"])
 
 NOMBRE_COOKIE = "token_acceso"
+
+MENSAJE_EMAIL_DUPLICADO = "El email ya está registrado."
 
 
 def _setear_cookie_sesion(response: Response, usuario: Usuario) -> None:
@@ -26,22 +31,33 @@ def _setear_cookie_sesion(response: Response, usuario: Usuario) -> None:
     )
 
 
+def _crear_cuenta(db: Session, email: str, crear: Callable[[], Usuario]) -> Usuario:
+    """Verifica email único y ejecuta `crear`. Si dos requests concurrentes pasan
+    ambas el chequeo previo, la unicidad a nivel de columna igual las separa —
+    acá se traduce ese IntegrityError a un 409 limpio en vez de dejarlo escapar
+    como 500."""
+    if crud.obtener_usuario_por_email(db, email):
+        raise HTTPException(status_code=409, detail=MENSAJE_EMAIL_DUPLICADO)
+    try:
+        return crear()
+    except IntegrityError:
+        # Tras un IntegrityError, SQLAlchemy deja la sesión en estado "pending
+        # rollback" — cualquier uso posterior (incluso fuera de este request)
+        # revienta con PendingRollbackError si no se limpia acá mismo.
+        db.rollback()
+        raise HTTPException(status_code=409, detail=MENSAJE_EMAIL_DUPLICADO)
+
+
 @router.post(
     "/registro/chofer-independiente", response_model=schemas.UsuarioPublico, status_code=201
 )
 def registrar_chofer_independiente(
     datos: schemas.RegistroChoferIndependiente, response: Response, db: Session = Depends(get_db)
 ):
-    if crud.obtener_usuario_por_email(db, datos.email):
-        raise HTTPException(status_code=409, detail="El email ya está registrado.")
-
-    usuario = crud.crear_usuario(
+    usuario = _crear_cuenta(
         db,
-        email=datos.email,
-        contrasena_hash=hashear_contrasena(datos.contrasena),
-        nombre_completo=datos.nombre_completo,
-        rol=RolUsuario.CHOFER,
-        empresa_id=None,
+        datos.email,
+        lambda: crud.crear_chofer(db, datos, contrasena_hash=hashear_contrasena(datos.contrasena)),
     )
     _setear_cookie_sesion(response, usuario)
     return usuario
@@ -51,17 +67,17 @@ def registrar_chofer_independiente(
 def registrar_empresa(
     datos: schemas.RegistroEmpresa, response: Response, db: Session = Depends(get_db)
 ):
-    if crud.obtener_usuario_por_email(db, datos.email):
-        raise HTTPException(status_code=409, detail="El email ya está registrado.")
-
     empresa = crud.crear_empresa(db, nombre=datos.nombre_empresa)
-    usuario = crud.crear_usuario(
+    usuario = _crear_cuenta(
         db,
-        email=datos.email,
-        contrasena_hash=hashear_contrasena(datos.contrasena),
-        nombre_completo=datos.nombre_completo,
-        rol=RolUsuario.ADMIN,
-        empresa_id=empresa.id,
+        datos.email,
+        lambda: crud.crear_admin(
+            db,
+            email=datos.email,
+            contrasena_hash=hashear_contrasena(datos.contrasena),
+            nombre_completo=datos.nombre_completo,
+            empresa_id=empresa.id,
+        ),
     )
     _setear_cookie_sesion(response, usuario)
     return schemas.RegistroEmpresaResponse(usuario=usuario, empresa=empresa)
@@ -76,16 +92,16 @@ def registrar_chofer_invitado(
         raise HTTPException(status_code=404, detail="Código de invitación inexistente.")
     if invitacion.usado:
         raise HTTPException(status_code=409, detail="El código de invitación ya fue utilizado.")
-    if crud.obtener_usuario_por_email(db, datos.email):
-        raise HTTPException(status_code=409, detail="El email ya está registrado.")
 
-    usuario = crud.crear_usuario(
+    usuario = _crear_cuenta(
         db,
-        email=datos.email,
-        contrasena_hash=hashear_contrasena(datos.contrasena),
-        nombre_completo=datos.nombre_completo,
-        rol=RolUsuario.CHOFER,
-        empresa_id=invitacion.empresa_id,
+        datos.email,
+        lambda: crud.crear_chofer(
+            db,
+            datos,
+            contrasena_hash=hashear_contrasena(datos.contrasena),
+            empresa_id=invitacion.empresa_id,
+        ),
     )
     crud.marcar_codigo_usado(db, invitacion, usuario.id)
     _setear_cookie_sesion(response, usuario)

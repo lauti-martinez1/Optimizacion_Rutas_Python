@@ -2,7 +2,7 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, String, func
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, String, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -18,6 +18,14 @@ class PlanSuscripcion(str, enum.Enum):
     PRUEBA = "prueba"
     BASICO = "basico"
     PREMIUM = "premium"
+
+
+class TipoVehiculo(str, enum.Enum):
+    MOTO = "moto"
+    AUTO = "auto"
+    CAMIONETA = "camioneta"
+    FURGON = "furgon"
+    CAMION = "camion"
 
 
 class SuscripcionMixin:
@@ -66,6 +74,15 @@ class Usuario(SuscripcionMixin, Base):
     empresa_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("empresas.id"), nullable=True
     )
+
+    # Datos operativos del chofer — NULL para admins de empresa (no manejan) y
+    # para cuentas creadas antes de que estos campos existieran.
+    telefono: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    tipo_vehiculo: Mapped[TipoVehiculo | None] = mapped_column(
+        Enum(TipoVehiculo, name="tipo_vehiculo", native_enum=False), nullable=True
+    )
+    patente: Mapped[str | None] = mapped_column(String(12), nullable=True)
+    capacidad_carga_kg: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     activo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 

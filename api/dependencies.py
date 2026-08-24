@@ -29,4 +29,11 @@ def obtener_usuario_actual(request: Request, db: Session = Depends(get_db)) -> U
 def requiere_admin(usuario: Usuario = Depends(obtener_usuario_actual)) -> Usuario:
     if usuario.rol != RolUsuario.ADMIN:
         raise HTTPException(status_code=403, detail="Se requiere rol de administrador.")
+    if usuario.empresa_id is None:
+        # No debería poder pasar — db.crear_admin() es el único camino para crear un
+        # ADMIN y exige empresa_id. Si igual pasa (dato corrupto, código futuro que
+        # se salte crear_admin), fallar acá con un mensaje claro en vez de dejar que
+        # un endpoint downstream (ej. generar_invitacion) reviente con un
+        # IntegrityError sin manejar contra codigos_invitacion.empresa_id.
+        raise HTTPException(status_code=500, detail="Cuenta admin sin empresa asociada.")
     return usuario
