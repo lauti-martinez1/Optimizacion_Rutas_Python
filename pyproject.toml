@@ -1,0 +1,48 @@
+[project]
+name = "optimizacion-rutas"
+version = "0.1.0"
+description = "Motor de optimización de rutas (VRP) para empresas de distribución del Gran Mendoza"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "ortools>=9.11",
+    "requests>=2.32",
+    "pydantic-settings>=2.15.0",
+    "sqlalchemy>=2.0.36",
+    "alembic>=1.19.1",
+    "psycopg[binary]>=3.3.4",
+    "passlib[bcrypt]>=1.7.4",
+    "bcrypt<4.1",
+    "python-jose[cryptography]>=3.5.0",
+    "email-validator>=2.3.0",
+]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "pytest>=8.3",
+    "ruff>=0.7",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = ["alembic/versions"]  # migraciones autogeneradas, no aplicamos estilo propio ahí
+
+[tool.ruff.lint]
+# B008: Depends(...) en defaults es el patrón idiomático de FastAPI, no un bug.
+ignore = ["B008"]
+
+[tool.ruff.lint.per-file-ignores]
+# Código anterior a esta sesión con hints laxos — CLAUDE.md §4: "no hace falta
+# reescribirlo retroactivamente". api/schemas.py es una copia literal de los
+# schemas que ya vivían en main.py.
+"api/schemas.py" = ["UP006", "UP035", "UP045"]
+"routing/solver.py" = ["RUF013"]
+# Bug preexistente documentado (CLAUDE.md §9): un Fallo del solver debería dar
+# 400 pero el except Exception genérico lo reconvierte en 500. No se corrige acá
+# a propósito, para no mezclar el refactor de main.py con un fix de comportamiento.
+"api/routes.py" = ["BLE001"]
+# Estilo, no un bug: reusar la Exception builtin en vez de una custom.
+"services/osrm_client.py" = ["TRY002"]

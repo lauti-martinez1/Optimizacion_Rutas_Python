@@ -1,10 +1,18 @@
-from ortools.constraint_solver import routing_enums_pb2
-from ortools.constraint_solver import pywrapcp
+from ortools.constraint_solver import pywrapcp, routing_enums_pb2
 
-def resolver_ruteo(matriz_distancias: list, demandas: list, capacidades_vehiculos: list,
-                   matriz_tiempos: list = None, tiempos_servicio: list = None, 
-                   ventanas_horarias: list = None, tipo_problema: str = "CVRP") -> dict:
-    
+from core.config import settings
+
+
+def resolver_ruteo(
+    matriz_distancias: list,
+    demandas: list,
+    capacidades_vehiculos: list,
+    matriz_tiempos: list = None,
+    tiempos_servicio: list = None,
+    ventanas_horarias: list = None,
+    tipo_problema: str = "CVRP",
+) -> dict:
+
     num_nodos = len(matriz_distancias)
     num_vehiculos = len(capacidades_vehiculos)
     nodo_deposito = 0
@@ -32,11 +40,12 @@ def resolver_ruteo(matriz_distancias: list, demandas: list, capacidades_vehiculo
         0,  # Sin holgura
         capacidades_vehiculos,
         True,
-        'Capacidad'
+        "Capacidad",
     )
 
     # 3. Dimensión de Tiempo (VRPTW)
     if tipo_problema == "VRPTW":
+
         def callback_tiempo(from_index, to_index):
             origen = manager.IndexToNode(from_index)
             destino = manager.IndexToNode(to_index)
@@ -46,17 +55,17 @@ def resolver_ruteo(matriz_distancias: list, demandas: list, capacidades_vehiculo
             return tiempo_viaje_minutos + tiempo_descarga
 
         indice_tiempo = routing.RegisterTransitCallback(callback_tiempo)
-        
+
         # Agregamos la restricción de tiempo
         routing.AddDimension(
             indice_tiempo,
             120,  # Holgura (Tiempo máximo de espera si el camión llega antes que abra el cliente)
-            1440, # Tiempo máximo total por vehículo (ej. 24 hs = 1440 mins)
+            1440,  # Tiempo máximo total por vehículo (ej. 24 hs = 1440 mins)
             False,
-            'Tiempo'
+            "Tiempo",
         )
-        dimension_tiempo = routing.GetDimensionOrDie('Tiempo')
-        
+        dimension_tiempo = routing.GetDimensionOrDie("Tiempo")
+
         # Aplicamos las ventanas horarias a cada nodo
         for i in range(num_nodos):
             # Obtenemos inicio y fin (ej: abre al minuto 480 [8AM], cierra al minuto 600 [10AM])
@@ -72,9 +81,13 @@ def resolver_ruteo(matriz_distancias: list, demandas: list, capacidades_vehiculo
 
     # 4. Estrategia de Búsqueda
     parametros_busqueda = pywrapcp.DefaultRoutingSearchParameters()
-    parametros_busqueda.first_solution_strategy = routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC
-    parametros_busqueda.local_search_metaheuristic = routing_enums_pb2.LocalSearchMetaheuristic.GUIDED_LOCAL_SEARCH
-    parametros_busqueda.time_limit.seconds = 5
+    parametros_busqueda.first_solution_strategy = (
+        routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC
+    )
+    parametros_busqueda.local_search_metaheuristic = (
+        routing_enums_pb2.LocalSearchMetaheuristic.GUIDED_LOCAL_SEARCH
+    )
+    parametros_busqueda.time_limit.seconds = settings.solver_time_limit_segundos
 
     # 5. Resolver
     solucion = routing.SolveWithParameters(parametros_busqueda)
@@ -91,22 +104,22 @@ def resolver_ruteo(matriz_distancias: list, demandas: list, capacidades_vehiculo
         ruta = []
         carga_ruta = 0
         distancia_ruta = 0
-        
+
         while not routing.IsEnd(indice):
             nodo_actual = manager.IndexToNode(indice)
             carga_ruta += demandas[nodo_actual]
-            
+
             # Recolectamos la información del nodo
             info_nodo = {"nodo_id": nodo_actual}
-            
+
             # Si es VRPTW, extraemos el minuto exacto de llegada calculado por el modelo
             if tipo_problema == "VRPTW":
-                dimension_tiempo = routing.GetDimensionOrDie('Tiempo')
+                dimension_tiempo = routing.GetDimensionOrDie("Tiempo")
                 var_tiempo = dimension_tiempo.CumulVar(indice)
                 info_nodo["minuto_llegada"] = solucion.Min(var_tiempo)
-                
+
             ruta.append(info_nodo)
-            
+
             indice_anterior = indice
             indice = solucion.Value(routing.NextVar(indice))
             distancia_ruta += routing.GetArcCostForVehicle(indice_anterior, indice, id_vehiculo)
@@ -116,19 +129,17 @@ def resolver_ruteo(matriz_distancias: list, demandas: list, capacidades_vehiculo
         if tipo_problema == "VRPTW":
             var_tiempo = dimension_tiempo.CumulVar(indice)
             info_nodo_final["minuto_llegada"] = solucion.Min(var_tiempo)
-            
+
         ruta.append(info_nodo_final)
 
-        rutas_vehiculos.append({
-            "vehiculo": id_vehiculo,
-            "ruta_secuencial_nodos": ruta,
-            "carga_total": carga_ruta,
-            "distancia_recorrida_metros": distancia_ruta
-        })
+        rutas_vehiculos.append(
+            {
+                "vehiculo": id_vehiculo,
+                "ruta_secuencial_nodos": ruta,
+                "carga_total": carga_ruta,
+                "distancia_recorrida_metros": distancia_ruta,
+            }
+        )
         distancia_total += distancia_ruta
 
-    return {
-        "estado": "Exito",
-        "rutas": rutas_vehiculos,
-        "distancia_total_flota": distancia_total
-    }
+    return {"estado": "Exito", "rutas": rutas_vehiculos, "distancia_total_flota": distancia_total}

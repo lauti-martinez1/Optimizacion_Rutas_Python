@@ -1,2 +1,7 @@
 vrp_env/
 __pycache__/
+.venv/
+.env
+node_modules/
+frontend/dist/
+*.pyc
