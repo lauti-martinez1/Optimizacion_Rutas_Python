@@ -37,3 +37,21 @@ a:hover {
 button {
   font-family: var(--fuente-sans);
 }
+
+::selection {
+  background: var(--color-primario);
+  color: var(--color-blanco);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-primario);
+  outline-offset: 2px;
+}
+
+.boton:focus-visible {
+  outline-offset: 3px;
+}
+
+.campo__input:focus-visible {
+  outline: none;
+}

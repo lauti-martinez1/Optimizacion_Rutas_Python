@@ -1,20 +1,109 @@
 .pagina-auth {
+  position: relative;
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   padding: 32px 20px;
-  background: var(--color-fondo);
+  background-color: var(--color-fondo);
+  background-image:
+    linear-gradient(180deg, rgba(16, 24, 40, 0.32) 0%, rgba(16, 24, 40, 0.08) 32%, rgba(16, 24, 40, 0.1) 62%, rgba(16, 24, 40, 0.55) 100%),
+    linear-gradient(135deg, rgba(46, 92, 255, 0.28) 0%, rgba(46, 92, 255, 0) 55%),
+    url('/img/fondo-auth.jpg');
+  background-size: cover;
+  background-position: center;
+  overflow: hidden;
+}
+
+.pagina-auth__overlay-ruta {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.pagina-auth__overlay-ruta path {
+  stroke-dasharray: 900;
+  stroke-dashoffset: 900;
+  animation: trazar-ruta 2.8s ease-in-out 0.15s forwards;
+}
+
+.pagina-auth__overlay-ruta circle.punto {
+  opacity: 0;
+  animation: aparecer-punto 0.5s ease-out forwards;
+}
+
+.pagina-auth__overlay-ruta circle.punto--inicio {
+  animation-delay: 0.15s;
+}
+
+.pagina-auth__overlay-ruta circle.punto--fin {
+  animation-delay: 2.65s;
+}
+
+.pagina-auth__overlay-ruta circle.punto--pulso {
+  opacity: 0;
+  animation:
+    aparecer-punto 0.5s ease-out 2.65s forwards,
+    pulso-punto 2.2s ease-out 3s infinite;
+}
+
+@keyframes trazar-ruta {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes aparecer-punto {
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes pulso-punto {
+  0% {
+    transform: scale(1);
+    opacity: 0.5;
+  }
+  100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+
+.pagina-auth__contenido {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  animation: aparecer-tarjeta 0.55s cubic-bezier(0.16, 1, 0.3, 1) 0.05s both;
+}
+
+@keyframes aparecer-tarjeta {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .tarjeta-auth {
   width: 100%;
   max-width: 400px;
-  background: var(--color-superficie);
-  border: 1px solid var(--color-borde);
+  background: rgba(245, 246, 248, 0.86);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.5);
   border-radius: var(--radio-xl);
-  box-shadow: var(--sombra-md);
+  box-shadow: 0 24px 48px -12px rgba(16, 24, 40, 0.35);
   padding: 32px 28px;
 }
 
@@ -55,15 +144,43 @@
   font-size: 14px;
   color: var(--color-texto-fuerte);
   outline: none;
-  transition: border-color 0.15s ease;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .campo__input:focus {
   border-color: var(--color-primario);
+  box-shadow: 0 0 0 3px rgba(46, 92, 255, 0.15);
 }
 
 .campo__input--error {
   border-color: var(--color-peligro);
+}
+
+.campo__select {
+  height: 46px;
+  background-color: var(--color-blanco);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6' fill='none'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%2398A2B3' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  border: 1px solid var(--color-borde-input);
+  border-radius: var(--radio-md);
+  padding: 0 36px 0 14px;
+  font-size: 14px;
+  color: var(--color-texto-fuerte);
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.campo__select:focus {
+  border-color: var(--color-primario);
+  box-shadow: 0 0 0 3px rgba(46, 92, 255, 0.15);
+}
+
+.campo__select:invalid {
+  color: var(--color-texto-tenue);
 }
 
 .campo__error {
@@ -84,7 +201,7 @@
   justify-content: center;
   gap: 8px;
   touch-action: manipulation;
-  transition: transform 0.1s ease, opacity 0.15s ease;
+  transition: transform 0.1s ease, opacity 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
 }
 
 .boton:active {
@@ -103,10 +220,19 @@
   box-shadow: var(--sombra-boton-primario);
 }
 
+.boton--primario:hover:not(:disabled) {
+  filter: brightness(1.06);
+  box-shadow: 0 6px 16px rgba(46, 92, 255, 0.32);
+}
+
 .boton--secundario {
   background: var(--color-blanco);
   color: var(--color-texto-fuerte);
   border: 1px solid var(--color-borde);
+}
+
+.boton--secundario:hover:not(:disabled) {
+  background: var(--color-fondo);
 }
 
 .error-formulario {
@@ -136,11 +262,12 @@
   border-radius: var(--radio-lg);
   padding: 14px 16px;
   cursor: pointer;
-  transition: border-color 0.15s ease;
+  transition: border-color 0.15s ease, transform 0.15s ease;
 }
 
 .selector-tipo-cuenta__opcion:hover {
   border-color: var(--color-primario);
+  transform: translateY(-1px);
 }
 
 .selector-tipo-cuenta__opcion--activa {
@@ -162,14 +289,50 @@
 .pie-auth {
   text-align: center;
   font-size: 12.5px;
-  color: var(--color-texto-mutado);
+  color: var(--color-blanco);
   margin-top: 20px;
+  padding: 8px 16px;
+  border-radius: var(--radio-pill);
+  background: rgba(16, 24, 40, 0.34);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.pie-auth a {
+  color: var(--color-blanco);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-color: rgba(255, 255, 255, 0.5);
+}
+
+.pie-auth a:hover {
+  text-decoration-color: var(--color-blanco);
 }
 
 .enlace-volver {
   display: inline-block;
   margin-bottom: 16px;
+  padding: 0;
+  background: none;
+  border: none;
   font-size: 12.5px;
   color: var(--color-texto-mutado);
   cursor: pointer;
+}
+
+.enlace-volver:hover {
+  color: var(--color-texto-cuerpo);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pagina-auth__overlay-ruta path,
+  .pagina-auth__overlay-ruta circle.punto,
+  .pagina-auth__overlay-ruta circle.punto--pulso,
+  .pagina-auth__contenido {
+    animation: none;
+    opacity: 1;
+    stroke-dashoffset: 0;
+    transform: none;
+  }
 }

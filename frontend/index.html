@@ -7,6 +7,14 @@
     <title>Optimización de Rutas</title>
   </head>
   <body>
+    <!--
+      THESIS: el login es la primera vista de la ruta que el chofer va a manejar hoy, no una tarjeta esperando sola en un fondo vacío. Rechaza el card-en-gris genérico.
+      OWN-WORLD: azul #2E5CFF, verde éxito #12B76A, Inter + JetBrains Mono, radios 14-16px, ya establecidos en tokens.css — heredados, no reinventados.
+      STORY: el chofer ve una calle real de reparto con una línea de ruta trazada encima; entiende de inmediato que esto es una app de rutas y confía en que su trabajo del día está ahí.
+      FIRST VIEWPORT (surface: /login, /registro): foto full-bleed + línea de ruta SVG superpuesta con pin de inicio oscuro y pin de destino en acento azul con pulso — misma convención de "Ruta Activa" en el mockup —, tarjeta de login centrada translúcida con blur.
+      FORM: candidato 4/7 de la lista propia (foto + línea de ruta superpuesta), seed key 6ad67f23.
+      FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, and DESIGN.md.
+    -->
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
