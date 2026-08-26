@@ -1,3 +1,5 @@
+from tests.conftest import payload_chofer
+
 BASE = "/api/v1/clientes"
 
 PAYLOAD_CLIENTE = {
@@ -12,16 +14,7 @@ PAYLOAD_CLIENTE = {
 def _registrar_chofer_independiente(client, email="chofer@test.com", patente="AB123CD"):
     return client.post(
         "/api/v1/auth/registro/chofer-independiente",
-        json={
-            "email": email,
-            "contrasena": "claveValida123",
-            "confirmar_contrasena": "claveValida123",
-            "nombre_completo": "Chofer Test",
-            "telefono": "+54 9 261 555-0100",
-            "tipo_vehiculo": "moto",
-            "patente": patente,
-            "capacidad_carga_kg": 50,
-        },
+        json=payload_chofer(email, patente=patente),
     )
 
 

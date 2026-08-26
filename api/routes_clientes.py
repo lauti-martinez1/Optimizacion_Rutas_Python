@@ -12,23 +12,9 @@ from db.modelos import Cliente, Usuario
 router = APIRouter(prefix="/api/v1/clientes", tags=["Clientes"])
 
 
-def _duenio(usuario: Usuario) -> dict[str, uuid.UUID | None]:
-    """Un Cliente es propiedad de la empresa (compartido por todos sus
-    choferes) si el usuario pertenece a una, o del chofer independiente si no
-    — mismo criterio que db.crud.crear_chofer usa para Vehiculo."""
-    if usuario.empresa_id is not None:
-        return {"empresa_id": usuario.empresa_id, "usuario_id": None}
-    return {"empresa_id": None, "usuario_id": usuario.id}
-
-
 def _obtener_cliente_propio(db: Session, cliente_id: uuid.UUID, usuario: Usuario) -> Cliente:
-    cliente = crud.obtener_cliente(db, cliente_id)
-    duenio = _duenio(usuario)
-    if (
-        cliente is None
-        or cliente.empresa_id != duenio["empresa_id"]
-        or cliente.usuario_id != duenio["usuario_id"]
-    ):
+    cliente = crud.obtener_cliente_propio(db, cliente_id, usuario.ambito_dueño)
+    if cliente is None:
         raise HTTPException(status_code=404, detail="Cliente no encontrado.")
     return cliente
 
@@ -39,14 +25,14 @@ def crear_cliente(
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(obtener_usuario_actual),
 ):
-    return crud.crear_cliente(db, datos, **_duenio(usuario))
+    return crud.crear_cliente(db, datos, usuario.ambito_dueño)
 
 
 @router.get("", response_model=list[schemas.ClientePublico])
 def listar_clientes(
     db: Session = Depends(get_db), usuario: Usuario = Depends(obtener_usuario_actual)
 ):
-    return crud.listar_clientes(db, **_duenio(usuario))
+    return crud.listar_clientes(db, usuario.ambito_dueño)
 
 
 @router.patch("/{cliente_id}", response_model=schemas.ClientePublico)

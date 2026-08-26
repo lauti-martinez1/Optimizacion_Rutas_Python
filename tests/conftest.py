@@ -12,6 +12,29 @@ from main import app
 
 # Nunca corremos los tests contra la DB de desarrollo: usamos una base aparte
 # en el mismo servidor Postgres, derivada agregando el sufijo "_test".
+DATOS_VEHICULO = {
+    "telefono": "+54 9 261 555-0100",
+    "tipo_vehiculo": "moto",
+    "patente": "AB123CD",
+    "capacidad_carga_kg": 50,
+}
+
+
+def payload_chofer(email, contrasena="soloYoManejo1", nombre_completo="Carlos Solo", **overrides):
+    """Payload de registro de chofer independiente, reutilizado por
+    test_auth.py y test_clientes.py — evita que cada archivo tenga su propia
+    copia de DATOS_VEHICULO."""
+    payload = {
+        "email": email,
+        "contrasena": contrasena,
+        "confirmar_contrasena": contrasena,
+        "nombre_completo": nombre_completo,
+        **DATOS_VEHICULO,
+    }
+    payload.update(overrides)
+    return payload
+
+
 _URL_BASE = settings.database_url
 _NOMBRE_DB_TEST = _URL_BASE.rsplit("/", 1)[-1] + "_test"
 URL_DB_TEST = _URL_BASE.rsplit("/", 1)[0] + "/" + _NOMBRE_DB_TEST

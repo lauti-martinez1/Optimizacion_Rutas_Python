@@ -16,9 +16,10 @@ export function PestanaLugares() {
   }
 
   useEffect(() => {
-    listarClientes()
-      .then(setClientes)
-      .finally(() => setCargando(false));
+    // oxlint no distingue que setClientes ocurre después de un await dentro
+    // de recargar() — no hay setState síncrono ni loop de renders acá.
+    // oxlint-disable-next-line react/set-state-in-effect
+    recargar().finally(() => setCargando(false));
   }, []);
 
   function abrirNuevo() {

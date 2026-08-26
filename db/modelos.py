@@ -1,6 +1,7 @@
 import enum
 import uuid
 from datetime import date, datetime
+from typing import NamedTuple
 
 from sqlalchemy import (
     Boolean,
@@ -97,6 +98,15 @@ class DuenioMixin:
     )
 
 
+class Duenio(NamedTuple):
+    """Identifica a quién pertenecen los recursos de DuenioMixin (Vehiculo de
+    reserva, Deposito, Cliente): a una empresa (compartidos entre su flota) o
+    a un chofer independiente — nunca ambos. Ver Usuario.ambito_dueño."""
+
+    empresa_id: uuid.UUID | None
+    usuario_id: uuid.UUID | None
+
+
 class Empresa(SuscripcionMixin, Base):
     __tablename__ = "empresas"
 
@@ -168,6 +178,17 @@ class Usuario(SuscripcionMixin, Base):
         hay más de uno (Vehiculo.usuario_id no lleva historial, solo el estado
         actual, y nada fuerza a un único vehículo activo a nivel de DB)."""
         return self.vehiculos[0] if self.vehiculos else None
+
+    @property
+    def ambito_dueño(self) -> Duenio:
+        """A quién pertenecen los Vehiculo/Deposito/Cliente que este usuario
+        puede crear o listar: los de su empresa si pertenece a una (los
+        comparte con el resto de la flota), o los suyos propios si es
+        independiente. Único lugar donde vive esta regla — routers y CRUD
+        de cada recurso la consumen en vez de reimplementarla."""
+        if self.empresa_id is not None:
+            return Duenio(empresa_id=self.empresa_id, usuario_id=None)
+        return Duenio(empresa_id=None, usuario_id=self.id)
 
     def __repr__(self) -> str:
         return f"<Usuario {self.email} rol={self.rol.value}>"

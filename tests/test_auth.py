@@ -1,23 +1,6 @@
+from tests.conftest import payload_chofer as _payload_chofer
+
 BASE = "/api/v1/auth"
-
-DATOS_VEHICULO = {
-    "telefono": "+54 9 261 555-0100",
-    "tipo_vehiculo": "moto",
-    "patente": "AB123CD",
-    "capacidad_carga_kg": 50,
-}
-
-
-def _payload_chofer(email, contrasena="soloYoManejo1", nombre_completo="Carlos Solo", **overrides):
-    payload = {
-        "email": email,
-        "contrasena": contrasena,
-        "confirmar_contrasena": contrasena,
-        "nombre_completo": nombre_completo,
-        **DATOS_VEHICULO,
-    }
-    payload.update(overrides)
-    return payload
 
 
 def _registrar_empresa(client, email="admin@sur.com"):

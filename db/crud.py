@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from db.modelos import (
     Cliente,
     CodigoInvitacion,
+    Duenio,
     Empresa,
     PlanSuscripcion,
     RolUsuario,
@@ -156,17 +157,20 @@ def marcar_codigo_usado(db: Session, invitacion: CodigoInvitacion, usuario_id: u
     guardar(db, invitacion)
 
 
-def crear_cliente(
-    db: Session,
-    datos: DatosCliente,
-    empresa_id: uuid.UUID | None,
-    usuario_id: uuid.UUID | None,
-) -> Cliente:
+def _condicion_dueño(duenio: Duenio):
+    return (
+        Cliente.empresa_id == duenio.empresa_id
+        if duenio.empresa_id
+        else Cliente.usuario_id == duenio.usuario_id
+    )
+
+
+def crear_cliente(db: Session, datos: DatosCliente, duenio: Duenio) -> Cliente:
     return guardar(
         db,
         Cliente(
-            empresa_id=empresa_id,
-            usuario_id=usuario_id,
+            empresa_id=duenio.empresa_id,
+            usuario_id=duenio.usuario_id,
             nombre=datos.nombre,
             direccion=datos.direccion,
             latitud=datos.latitud,
@@ -176,19 +180,23 @@ def crear_cliente(
     )
 
 
-def listar_clientes(
-    db: Session, empresa_id: uuid.UUID | None, usuario_id: uuid.UUID | None
-) -> list[Cliente]:
-    dueño = Cliente.empresa_id == empresa_id if empresa_id else Cliente.usuario_id == usuario_id
+def listar_clientes(db: Session, duenio: Duenio) -> list[Cliente]:
     return list(
         db.execute(
-            select(Cliente).where(dueño, Cliente.activo.is_(True)).order_by(Cliente.nombre)
+            select(Cliente)
+            .where(_condicion_dueño(duenio), Cliente.activo.is_(True))
+            .order_by(Cliente.nombre)
         ).scalars()
     )
 
 
-def obtener_cliente(db: Session, cliente_id: uuid.UUID) -> Cliente | None:
-    return db.get(Cliente, cliente_id)
+def obtener_cliente_propio(db: Session, cliente_id: uuid.UUID, duenio: Duenio) -> Cliente | None:
+    """Trae el Cliente solo si pertenece a `duenio` — el scoping vive en la
+    query, no queda a cargo de que el caller lo verifique después de un
+    fetch sin restricción (eso sería fácil de olvidar en un endpoint nuevo)."""
+    return db.execute(
+        select(Cliente).where(Cliente.id == cliente_id, _condicion_dueño(duenio))
+    ).scalar_one_or_none()
 
 
 def actualizar_cliente(db: Session, cliente: Cliente, cambios: dict[str, object]) -> Cliente:
