@@ -11,6 +11,7 @@ class Settings(BaseSettings):
 
     osrm_base_url: str = "http://router.project-osrm.org"
     solver_time_limit_segundos: int = 5
+    nominatim_base_url: str = "https://nominatim.openstreetmap.org"
 
     database_url: str
     jwt_secret_key: str

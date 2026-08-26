@@ -7,7 +7,12 @@ from core.seguridad import decodificar_token
 from db.modelos import RolUsuario, Usuario
 from db.sesion import get_db
 
-__all__ = ["get_db", "obtener_usuario_actual", "requiere_admin"]
+__all__ = [
+    "get_db",
+    "obtener_usuario_actual",
+    "requiere_admin",
+    "requiere_chofer_independiente",
+]
 
 
 def obtener_usuario_actual(request: Request, db: Session = Depends(get_db)) -> Usuario:
@@ -36,4 +41,16 @@ def requiere_admin(usuario: Usuario = Depends(obtener_usuario_actual)) -> Usuari
         # un endpoint downstream (ej. generar_invitacion) reviente con un
         # IntegrityError sin manejar contra codigos_invitacion.empresa_id.
         raise HTTPException(status_code=500, detail="Cuenta admin sin empresa asociada.")
+    return usuario
+
+
+def requiere_chofer_independiente(usuario: Usuario = Depends(obtener_usuario_actual)) -> Usuario:
+    """Armar y confirmar la propia ruta es autoservicio del chofer sin
+    empresa — un chofer de empresa la recibe asignada por su admin (todavía
+    sin implementar), no la arma él mismo."""
+    if usuario.empresa_id is not None:
+        raise HTTPException(
+            status_code=403,
+            detail="Los choferes de empresa reciben la ruta asignada por su empresa.",
+        )
     return usuario

@@ -65,12 +65,13 @@ export function FormularioCliente({ cliente, onGuardado, onCancelar }: Props) {
       <SelectorUbicacion
         latitud={latitud}
         longitud={longitud}
-        onCambiar={(lat, lon) => {
+        onCambiar={(lat, lon, direccionSugerida) => {
           setLatitud(lat);
           setLongitud(lon);
+          if (direccionSugerida) setDireccion(direccionSugerida);
         }}
       />
-      <div className="formulario-lugar__acciones">
+      <div className="fila-botones">
         <Boton type="button" variante="secundario" onClick={onCancelar}>
           Cancelar
         </Boton>

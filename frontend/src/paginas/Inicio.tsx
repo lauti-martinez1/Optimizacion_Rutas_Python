@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 
 import { Boton } from "../componentes/ui/Boton";
 import { useAuthStore } from "../store/useAuthStore";
+import { PestanaInicio } from "./PestanaInicio";
 import { PestanaLugares } from "./PestanaLugares";
 
 type Pestana = "inicio" | "lugares";
@@ -63,11 +64,9 @@ export function Inicio() {
 
       <main className="contenido-app">
         {pestana === "lugares" && esChoferParticular ? (
-          <PestanaLugares />
+          <PestanaLugares onRutaConfirmada={() => setPestana("inicio")} />
         ) : (
-          <div className="tarjeta-contenido">
-            <p>Todavía no tenés rutas asignadas.</p>
-          </div>
+          <PestanaInicio />
         )}
       </main>
     </div>

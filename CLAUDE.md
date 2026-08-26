@@ -50,18 +50,25 @@ core/
 db/
   base.py                      # Base declarativa SQLAlchemy + naming convention (constraints estables en Alembic)
   sesion.py                    # engine, SessionLocal, get_db()
-  modelos.py                   # Empresa, Usuario, CodigoInvitacion (+ enums RolUsuario, PlanSuscripcion)
-  crud.py                      # funciones de acceso a datos (crear_*, obtener_*, listar_*)
+  modelos.py                   # Empresa, Usuario, CodigoInvitacion, Vehiculo, Deposito, Cliente, Ruta, ParadaRuta,
+                                # PruebaEntrega, Incidencia (+ DuenioMixin/Duenio — dueño = empresa o chofer indep.)
+  crud.py                      # funciones de acceso a datos (crear_*, obtener_*, listar_*), scoping por Duenio
 api/
-  schemas.py                   # Cliente, Deposito, Vehiculo, VentanaHoraria, Coordenada, PeticionRutas (VRP)
-  routes.py                    # POST /api/v1/optimizar
-  schemas_auth.py               # Pydantic de registro/login/me/invitaciones
-  routes_auth.py                 # 8 endpoints bajo /api/v1/auth (ver §10)
-  dependencies.py                # get_db, obtener_usuario_actual, requiere_admin
+  schemas.py                   # Cliente, Deposito, Vehiculo, VentanaHoraria, Coordenada, PeticionRutas (VRP, stateless)
+  routes.py                    # POST /api/v1/optimizar (motor VRP puro, sin persistencia — ver §5)
+  schemas_auth.py / routes_auth.py     # registro/login/me/invitaciones (ver §10)
+  schemas_clientes.py / routes_clientes.py     # CRUD de Cliente ("lugares" guardados) — ver §11
+  schemas_depositos.py / routes_depositos.py   # CRUD de Deposito — ver §11
+  schemas_rutas.py / routes_rutas.py           # optimizar/confirmar/activa — ver §11
+  schemas_geocoding.py / routes_geocoding.py   # proxy de geocoding inverso (Nominatim) — ver §11
+  dependencies.py                # get_db, obtener_usuario_actual, requiere_admin, requiere_chofer_independiente
 routing/
   solver.py                    # resolver_ruteo(): el modelo OR-Tools (lee settings.solver_time_limit_segundos)
+  planificador.py              # planificar_ruta(): arma el problema desde Cliente/Vehiculo/Deposito de un usuario
+                                # y llama a resolver_ruteo — compartido por /rutas/optimizar y /rutas/confirmar
 services/
   osrm_client.py                # obtener_matriz_osrm(): URL desde settings.osrm_base_url
+  nominatim_client.py           # geocodificar_inverso(): URL desde settings.nominatim_base_url
 scripts/
   benchmark_solomon.py          # benchmark VRPTW — TODAVÍA duplica lógica de routing/solver.py (ver §9)
   benchmark_uchoa.py            # benchmark CVRP — ídem
@@ -75,8 +82,11 @@ alembic/
   env.py                        # configurado con settings.database_url + metadata de db.modelos
   versions/                     # migraciones — excluidas de ruff, no reescribir su estilo a mano
 tests/
-  conftest.py                   # DB Postgres de test separada (sufijo _test), TestClient con get_db overrideado
-  test_auth.py                  # 3 registros + login/logout/me + invitaciones (10 tests)
+  conftest.py                   # DB Postgres de test separada (sufijo _test), TestClient con get_db overrideado,
+                                 # payload_chofer() compartido para registrar un chofer independiente de prueba
+  test_auth.py / test_clientes.py / test_depositos.py / test_rutas.py
+                                 # test_rutas.py mockea obtener_matriz_osrm (routing.planificador) con una matriz
+                                 # sintética con floats — no depende del servidor OSRM real
 frontend/                       # PWA React+Vite+TS — ver §10
 docker-compose.yml              # servicio postgres (osrm queda comentado, pendiente roadmap ítem 4)
 pyproject.toml / uv.lock
@@ -119,6 +129,7 @@ Clase `Settings` (`pydantic-settings`), leída desde `.env` (ver `.env.example` 
 - `JWT_SECRET_KEY` — sin default, ídem. `JWT_ALGORITHM` (default `HS256`), `JWT_EXPIRE_MINUTES` (default 10080 = 7 días).
 - `ENTORNO` (`desarrollo` | `produccion`) — controla el flag `secure` de la cookie de sesión.
 - `FRONTEND_URL` — usado en `CORSMiddleware` (`allow_origins`), debe matchear el origin real del frontend.
+- `NOMINATIM_BASE_URL` — default `https://nominatim.openstreetmap.org` (servidor público, sin API key). Usado solo para geocoding inverso (pin del mapa → texto de dirección) en el alta de `Cliente`/`Deposito`; nunca para el motor VRP en sí.
 
 No hardcodees URLs, timeouts ni límites nuevos — si es un valor que alguien podría querer cambiar sin tocar código, va en `Settings`.
 
@@ -184,6 +195,29 @@ Capa nueva para soportar la app PWA (más allá del motor VRP puro). Backend: `d
 
 **Fuera de alcance todavía** (no construir por sorpresa sin que se pida explícitamente):
 - Dashboard de empresa (ver/listar choferes, copiar códigos de invitación desde la UI — hoy solo existe el endpoint, se prueba por API).
-- Asignación de rutas por parte de la empresa a un chofer específico.
-- El resto de las pantallas del mockup `Active Route View.dc.html`: Ruta Activa, Detalle de Parada, Prueba de Entrega (POD), Mi Flota, Incidencias, Resumen de cierre. Hoy el frontend solo tiene Login/Registro/una pantalla de inicio placeholder (`Inicio.tsx`) que confirma la sesión y ofrece logout.
+- Asignación de rutas por parte de la empresa a un chofer específico (el chofer independiente ya arma y confirma la suya solo — ver §11 — pero un chofer de empresa todavía no recibe nada, ni de un admin ni de sí mismo).
+- Detalle de Parada, Prueba de Entrega (POD — el modelo `PruebaEntrega` ya existe pero sin UI ni endpoint), Mi Flota, Incidencias, Resumen de cierre.
 - Billing/suscripciones reales, verificación de email, PWA offline/service worker/manifest.json.
+
+`Inicio.tsx` dejó de ser un placeholder — ver §11.
+
+## 11. Libreta de direcciones y armado de rutas (chofer independiente, nuevo, implementado)
+
+Primer punto de contacto entre el motor VRP (§5) y un usuario real: un chofer sin empresa arma y confirma su propia ruta del día, sin intervención de un admin. Backend: `db/modelos.py` (`Cliente`, `Deposito`, `Ruta`, `ParadaRuta`), `api/routes_clientes.py`, `api/routes_depositos.py`, `api/routes_rutas.py`, `routing/planificador.py`. Frontend: `frontend/src/paginas/{Inicio,PestanaInicio,PestanaLugares}.tsx`, `frontend/src/componentes/rutas/FlujoArmarRuta.tsx`, `frontend/src/componentes/mapa/SelectorUbicacion.tsx`.
+
+**Dueño de un recurso compartido** (`Cliente`, `Deposito`, y a futuro cualquier cosa con `DuenioMixin`): `Usuario.ambito_dueño` (propiedad en `db/modelos.py`, devuelve un `Duenio` — `NamedTuple` con `empresa_id`/`usuario_id`) es el único lugar que decide si un recurso nuevo pertenece a la empresa del usuario (compartido entre toda su flota) o al usuario mismo (independiente). `db/crud._condicion_dueño(modelo, duenio)` aplica ese mismo filtro como `WHERE` — nunca se trae una fila por id sin la condición de dueño adentro de la query (evita el típico bug de "traer y comparar después").
+
+**Selector de ubicación** (`SelectorUbicacion.tsx`, componente de mapa reusado por `FormularioCliente` y `FormularioDeposito`): Leaflet + tiles de OpenStreetMap (sin API key) para marcar el pin; al tocar el mapa dispara geocoding inverso contra Nominatim (`api/routes_geocoding.py` → `services/nominatim_client.py`) para autocompletar el texto de dirección — best-effort, si Nominatim falla el chofer igual puede escribirla a mano. No confundir con el motor VRP: esto es puramente para cargar datos, `routing/solver.py` sigue sin saber nada de geocoding.
+
+**Flujo de "armar ruta"** (`FlujoArmarRuta.tsx`, disparado desde el botón "Armar ruta" en `PestanaLugares.tsx`):
+1. Si el chofer todavía no tiene `Deposito`, primero se lo pide (`FormularioDeposito`) — es su punto de partida/llegada, obligatorio para el CVRP.
+2. Selecciona qué `Cliente` de su libreta visita hoy y cuánta carga (kg) lleva a cada uno — la carga es del viaje, no un dato fijo del `Cliente` (que solo tiene un `demanda_carga_default` opcional, hoy sin usar en la UI).
+3. `POST /api/v1/rutas/optimizar` arma el problema (vía `routing/planificador.planificar_ruta`, que reusa `resolver_ruteo`/`obtener_matriz_osrm` sin duplicar el modelado) y devuelve un preview **sin persistir**: orden de paradas + distancia acumulada por parada.
+4. El chofer confirma o cancela. `POST /api/v1/rutas/confirmar` vuelve a resolver el mismo problema (no persiste el preview del frontend tal cual — la única fuente de verdad es el solver) y crea `Ruta` + `ParadaRuta` (con snapshot de cada `Cliente` en ese momento, igual que ya documentaba el modelo de datos).
+5. Un chofer solo puede tener una `Ruta` con estado `planificada`/`en_curso` por día (`crud.obtener_ruta_activa`) — confirmar una segunda da 409.
+
+**CVRP únicamente, sin VRPTW todavía**: ni el formulario de `Cliente` ni el de selección piden ventana horaria, así que `ParadaRuta.hora_estimada_llegada` queda `NULL` — el preview y la ruta confirmada muestran distancia acumulada, no ETA. Extender a VRPTW es agregar los campos de ventana horaria a `Cliente`/`ParadaSeleccionada` y pasar `tipo_problema="VRPTW"` a `resolver_ruteo`, no un cambio de arquitectura.
+
+**Solo chofer independiente**: `api/dependencies.requiere_chofer_independiente` (403 si `usuario.empresa_id` no es `None`) protege `/rutas/optimizar` y `/rutas/confirmar` — un chofer de empresa no puede auto-asignarse una ruta todavía (ver §10, fuera de alcance). `GET /rutas/activa` sí es genérico (cualquier usuario autenticado), para cuando exista asignación por empresa no haga falta tocar ese endpoint.
+
+**`PestanaInicio.tsx`** (contenido de la pestaña "Inicio"): llama a `GET /rutas/activa` y listo — sin rama especial por rol, porque para cualquier usuario sin `Ruta` activa hoy (chofer de empresa, admin) el endpoint ya devuelve `null` de forma natural.

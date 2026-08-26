@@ -2,13 +2,20 @@ import { useEffect, useState } from "react";
 
 import { eliminarCliente, listarClientes } from "../api/clientes";
 import { FormularioCliente } from "../componentes/formularios/FormularioCliente";
+import { FlujoArmarRuta } from "../componentes/rutas/FlujoArmarRuta";
 import { Boton } from "../componentes/ui/Boton";
 import type { ClientePublico } from "../tipos/cliente";
 
-export function PestanaLugares() {
+type Vista = "lista" | "formulario" | "ruta";
+
+interface Props {
+  onRutaConfirmada: () => void;
+}
+
+export function PestanaLugares({ onRutaConfirmada }: Props) {
   const [clientes, setClientes] = useState<ClientePublico[]>([]);
   const [cargando, setCargando] = useState(true);
-  const [mostrarFormulario, setMostrarFormulario] = useState(false);
+  const [vista, setVista] = useState<Vista>("lista");
   const [clienteEditando, setClienteEditando] = useState<ClientePublico | null>(null);
 
   async function recargar() {
@@ -24,16 +31,16 @@ export function PestanaLugares() {
 
   function abrirNuevo() {
     setClienteEditando(null);
-    setMostrarFormulario(true);
+    setVista("formulario");
   }
 
   function abrirEdicion(cliente: ClientePublico) {
     setClienteEditando(cliente);
-    setMostrarFormulario(true);
+    setVista("formulario");
   }
 
   async function manejarGuardado() {
-    setMostrarFormulario(false);
+    setVista("lista");
     await recargar();
   }
 
@@ -42,19 +49,36 @@ export function PestanaLugares() {
     await recargar();
   }
 
-  if (mostrarFormulario) {
+  if (vista === "formulario") {
     return (
       <FormularioCliente
         cliente={clienteEditando}
         onGuardado={manejarGuardado}
-        onCancelar={() => setMostrarFormulario(false)}
+        onCancelar={() => setVista("lista")}
+      />
+    );
+  }
+
+  if (vista === "ruta") {
+    return (
+      <FlujoArmarRuta
+        clientes={clientes}
+        onConfirmada={onRutaConfirmada}
+        onCancelar={() => setVista("lista")}
       />
     );
   }
 
   return (
     <div className="pestana-lugares">
-      <Boton onClick={abrirNuevo}>+ Agregar lugar</Boton>
+      <div className="fila-botones">
+        <Boton variante="secundario" onClick={abrirNuevo}>
+          + Agregar lugar
+        </Boton>
+        <Boton onClick={() => setVista("ruta")} disabled={clientes.length === 0}>
+          Armar ruta
+        </Boton>
+      </div>
 
       {cargando ? (
         <p className="texto-vacio">Cargando…</p>

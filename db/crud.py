@@ -1,7 +1,7 @@
 import secrets
 import string
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Protocol
 
 from sqlalchemy import select
@@ -10,10 +10,15 @@ from sqlalchemy.orm import Session
 from db.modelos import (
     Cliente,
     CodigoInvitacion,
+    Deposito,
     Duenio,
     Empresa,
+    EstadoRuta,
+    ParadaRuta,
     PlanSuscripcion,
     RolUsuario,
+    Ruta,
+    TipoProblema,
     TipoVehiculo,
     Usuario,
     Vehiculo,
@@ -44,6 +49,17 @@ class DatosCliente(Protocol):
     latitud: float
     longitud: float
     telefono: str | None
+
+
+class DatosDeposito(Protocol):
+    """Forma estructural que necesita crear_deposito — cumplida por
+    api/schemas_depositos.py.DepositoCrear."""
+
+    nombre: str
+    latitud: float
+    longitud: float
+    ventana_inicio: int | None
+    ventana_fin: int | None
 
 
 def obtener_usuario_por_email(db: Session, email: str) -> Usuario | None:
@@ -157,11 +173,14 @@ def marcar_codigo_usado(db: Session, invitacion: CodigoInvitacion, usuario_id: u
     guardar(db, invitacion)
 
 
-def _condicion_dueño(duenio: Duenio):
+def _condicion_dueño(modelo: type[Cliente] | type[Deposito], duenio: Duenio):
+    """Condición SQL de dueño, compartida por cualquier modelo con
+    DuenioMixin (hoy Cliente y Deposito) — un solo lugar donde vive el
+    filtro, en vez de repetirlo por modelo."""
     return (
-        Cliente.empresa_id == duenio.empresa_id
+        modelo.empresa_id == duenio.empresa_id
         if duenio.empresa_id
-        else Cliente.usuario_id == duenio.usuario_id
+        else modelo.usuario_id == duenio.usuario_id
     )
 
 
@@ -184,7 +203,7 @@ def listar_clientes(db: Session, duenio: Duenio) -> list[Cliente]:
     return list(
         db.execute(
             select(Cliente)
-            .where(_condicion_dueño(duenio), Cliente.activo.is_(True))
+            .where(_condicion_dueño(Cliente, duenio), Cliente.activo.is_(True))
             .order_by(Cliente.nombre)
         ).scalars()
     )
@@ -195,8 +214,23 @@ def obtener_cliente_propio(db: Session, cliente_id: uuid.UUID, duenio: Duenio) -
     query, no queda a cargo de que el caller lo verifique después de un
     fetch sin restricción (eso sería fácil de olvidar en un endpoint nuevo)."""
     return db.execute(
-        select(Cliente).where(Cliente.id == cliente_id, _condicion_dueño(duenio))
+        select(Cliente).where(Cliente.id == cliente_id, _condicion_dueño(Cliente, duenio))
     ).scalar_one_or_none()
+
+
+def obtener_clientes_propios(
+    db: Session, cliente_ids: list[uuid.UUID], duenio: Duenio
+) -> list[Cliente]:
+    """Trae varios Cliente por id, filtrados por dueño — usado al armar una
+    ruta a partir de una selección. Si algún id no pertenece a `duenio`
+    (ajeno o inexistente), simplemente no aparece en el resultado; el
+    caller es responsable de comparar la cantidad devuelta contra la
+    pedida si necesita detectarlo."""
+    return list(
+        db.execute(
+            select(Cliente).where(Cliente.id.in_(cliente_ids), _condicion_dueño(Cliente, duenio))
+        ).scalars()
+    )
 
 
 def actualizar_cliente(db: Session, cliente: Cliente, cambios: dict[str, object]) -> Cliente:
@@ -210,3 +244,97 @@ def eliminar_cliente(db: Session, cliente: Cliente) -> None:
     de rutas ya confirmadas que referencien este cliente."""
     cliente.activo = False
     guardar(db, cliente)
+
+
+def crear_deposito(db: Session, datos: DatosDeposito, duenio: Duenio) -> Deposito:
+    return guardar(
+        db,
+        Deposito(
+            empresa_id=duenio.empresa_id,
+            usuario_id=duenio.usuario_id,
+            nombre=datos.nombre,
+            latitud=datos.latitud,
+            longitud=datos.longitud,
+            ventana_inicio=datos.ventana_inicio,
+            ventana_fin=datos.ventana_fin,
+        ),
+    )
+
+
+def listar_depositos(db: Session, duenio: Duenio) -> list[Deposito]:
+    return list(
+        db.execute(
+            select(Deposito)
+            .where(_condicion_dueño(Deposito, duenio), Deposito.activo.is_(True))
+            .order_by(Deposito.nombre)
+        ).scalars()
+    )
+
+
+def obtener_deposito_propio(db: Session, deposito_id: uuid.UUID, duenio: Duenio) -> Deposito | None:
+    return db.execute(
+        select(Deposito).where(Deposito.id == deposito_id, _condicion_dueño(Deposito, duenio))
+    ).scalar_one_or_none()
+
+
+def actualizar_deposito(db: Session, deposito: Deposito, cambios: dict[str, object]) -> Deposito:
+    for campo, valor in cambios.items():
+        setattr(deposito, campo, valor)
+    return guardar(db, deposito)
+
+
+def eliminar_deposito(db: Session, deposito: Deposito) -> None:
+    deposito.activo = False
+    guardar(db, deposito)
+
+
+def obtener_ruta_activa(db: Session, chofer_id: uuid.UUID, fecha: date) -> Ruta | None:
+    return db.execute(
+        select(Ruta).where(
+            Ruta.chofer_id == chofer_id,
+            Ruta.fecha == fecha,
+            Ruta.estado.in_([EstadoRuta.PLANIFICADA, EstadoRuta.EN_CURSO]),
+        )
+    ).scalar_one_or_none()
+
+
+def crear_ruta(
+    db: Session,
+    chofer: Usuario,
+    vehiculo: Vehiculo,
+    deposito: Deposito,
+    fecha: date,
+    distancia_total_m: int,
+    paradas: list[dict],
+) -> Ruta:
+    """`paradas`: lista de {"cliente": Cliente, "orden": int, "carga_kg": int},
+    ya en el orden que resolvió el solver (ver routing/planificador.py)."""
+    ruta = guardar(
+        db,
+        Ruta(
+            chofer_id=chofer.id,
+            vehiculo_id=vehiculo.id,
+            deposito_id=deposito.id,
+            creado_por_usuario_id=chofer.id,
+            fecha=fecha,
+            tipo_problema=TipoProblema.CVRP,
+            estado=EstadoRuta.PLANIFICADA,
+            distancia_total_m=distancia_total_m,
+        ),
+    )
+    for item in paradas:
+        cliente = item["cliente"]
+        guardar(
+            db,
+            ParadaRuta(
+                ruta_id=ruta.id,
+                cliente_id=cliente.id,
+                orden=item["orden"],
+                nombre_snapshot=cliente.nombre,
+                direccion_snapshot=cliente.direccion,
+                latitud_snapshot=cliente.latitud,
+                longitud_snapshot=cliente.longitud,
+                demanda_carga_snapshot=item["carga_kg"],
+            ),
+        )
+    return ruta

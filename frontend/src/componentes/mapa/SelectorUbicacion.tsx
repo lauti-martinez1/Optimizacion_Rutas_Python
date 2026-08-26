@@ -3,7 +3,10 @@ import "leaflet/dist/leaflet.css";
 import marcadorIcono from "leaflet/dist/images/marker-icon.png";
 import marcadorIcono2x from "leaflet/dist/images/marker-icon-2x.png";
 import marcadorSombra from "leaflet/dist/images/marker-shadow.png";
+import { useState } from "react";
 import { MapContainer, Marker, TileLayer, useMapEvents } from "react-leaflet";
+
+import { geocodificarInverso } from "../../api/geocoding";
 
 // El bundler no resuelve las rutas relativas que Leaflet usa por defecto
 // para el ícono del pin — hay que apuntarlas a mano a los assets importados.
@@ -24,21 +27,37 @@ const CENTRO_MENDOZA: [number, number] = [-32.8908, -68.8272];
 interface Props {
   latitud: number | null;
   longitud: number | null;
-  onCambiar: (latitud: number, longitud: number) => void;
+  /** direccionSugerida llega en null en el momento del click (todavía no se
+   * resolvió) y de nuevo con el resultado de Nominatim cuando está listo —
+   * o null si no encontró nada. El caller decide si pisa su campo de texto. */
+  onCambiar: (latitud: number, longitud: number, direccionSugerida: string | null) => void;
 }
 
-function ManejadorClicksMapa({ onCambiar }: Pick<Props, "onCambiar">) {
+function ManejadorClicksMapa({ onClick }: { onClick: (lat: number, lon: number) => void }) {
   useMapEvents({
     click(evento) {
-      onCambiar(evento.latlng.lat, evento.latlng.lng);
+      onClick(evento.latlng.lat, evento.latlng.lng);
     },
   });
   return null;
 }
 
 export function SelectorUbicacion({ latitud, longitud, onCambiar }: Props) {
+  const [buscando, setBuscando] = useState(false);
+  const [direccionResuelta, setDireccionResuelta] = useState<string | null>(null);
   const hayUbicacion = latitud != null && longitud != null;
   const centro: [number, number] = hayUbicacion ? [latitud, longitud] : CENTRO_MENDOZA;
+
+  function manejarClickMapa(lat: number, lon: number) {
+    onCambiar(lat, lon, null);
+    setDireccionResuelta(null);
+    setBuscando(true);
+    geocodificarInverso(lat, lon).then((direccion) => {
+      setBuscando(false);
+      setDireccionResuelta(direccion);
+      onCambiar(lat, lon, direccion);
+    });
+  }
 
   return (
     <div className="campo">
@@ -50,10 +69,16 @@ export function SelectorUbicacion({ latitud, longitud, onCambiar }: Props) {
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
           {hayUbicacion && <Marker position={[latitud, longitud]} icon={iconoMarcador} />}
-          <ManejadorClicksMapa onCambiar={onCambiar} />
+          <ManejadorClicksMapa onClick={manejarClickMapa} />
         </MapContainer>
       </div>
-      {!hayUbicacion && <span className="campo__error">Todavía no marcaste la ubicación.</span>}
+      {buscando && <span className="selector-ubicacion__estado">Buscando dirección…</span>}
+      {!buscando && direccionResuelta && (
+        <span className="selector-ubicacion__estado">{direccionResuelta}</span>
+      )}
+      {!hayUbicacion && !buscando && (
+        <span className="campo__error">Todavía no marcaste la ubicación.</span>
+      )}
     </div>
   );
 }
