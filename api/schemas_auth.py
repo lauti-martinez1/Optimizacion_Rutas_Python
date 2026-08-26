@@ -53,6 +53,16 @@ class EmpresaPublica(BaseModel):
     fecha_creacion: datetime
 
 
+class VehiculoPublico(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    tipo_vehiculo: TipoVehiculo
+    patente: str
+    capacidad_carga_kg: int
+    activo: bool
+
+
 class UsuarioPublico(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -62,9 +72,7 @@ class UsuarioPublico(BaseModel):
     rol: RolUsuario
     empresa_id: uuid.UUID | None
     telefono: str | None
-    tipo_vehiculo: TipoVehiculo | None
-    patente: str | None
-    capacidad_carga_kg: int | None
+    vehiculo: VehiculoPublico | None
     plan: PlanSuscripcion
     fecha_fin_prueba: datetime | None
     fecha_creacion: datetime

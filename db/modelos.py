@@ -1,8 +1,20 @@
 import enum
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
-from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, String, func
+from sqlalchemy import (
+    Boolean,
+    Date,
+    DateTime,
+    Enum,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -28,6 +40,34 @@ class TipoVehiculo(str, enum.Enum):
     CAMION = "camion"
 
 
+class TipoProblema(str, enum.Enum):
+    CVRP = "CVRP"
+    VRPTW = "VRPTW"
+
+
+class EstadoRuta(str, enum.Enum):
+    PLANIFICADA = "planificada"
+    EN_CURSO = "en_curso"
+    COMPLETADA = "completada"
+    CANCELADA = "cancelada"
+
+
+class EstadoParada(str, enum.Enum):
+    PENDIENTE = "pendiente"
+    EN_CURSO = "en_curso"
+    COMPLETADA = "completada"
+    FALLIDA = "fallida"
+
+
+class TipoIncidencia(str, enum.Enum):
+    CLIENTE_AUSENTE = "cliente_ausente"
+    RECHAZO_ENTREGA = "rechazo_entrega"
+    DIRECCION_INCORRECTA = "direccion_incorrecta"
+    MERCADERIA_DANADA = "mercaderia_danada"
+    PROBLEMA_VEHICULO = "problema_vehiculo"
+    OTRO = "otro"
+
+
 class SuscripcionMixin:
     """Campos de plan compartidos por Empresa y Usuario (chofer independiente paga su propio plan)."""
 
@@ -44,6 +84,19 @@ class SuscripcionMixin:
     )
 
 
+class DuenioMixin:
+    """FKs de dueño compartidas por los recursos que puede tener una empresa
+    (flota) o un chofer independiente — mismo patrón que Usuario.empresa_id.
+    Al menos una de las dos debe estar seteada (se valida en db/crud.py)."""
+
+    empresa_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("empresas.id"), nullable=True
+    )
+    usuario_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=True
+    )
+
+
 class Empresa(SuscripcionMixin, Base):
     __tablename__ = "empresas"
 
@@ -55,6 +108,15 @@ class Empresa(SuscripcionMixin, Base):
     )
     codigos_invitacion: Mapped[list["CodigoInvitacion"]] = relationship(
         back_populates="empresa", foreign_keys="CodigoInvitacion.empresa_id"
+    )
+    vehiculos: Mapped[list["Vehiculo"]] = relationship(
+        back_populates="empresa", foreign_keys="Vehiculo.empresa_id"
+    )
+    depositos: Mapped[list["Deposito"]] = relationship(
+        back_populates="empresa", foreign_keys="Deposito.empresa_id"
+    )
+    clientes: Mapped[list["Cliente"]] = relationship(
+        back_populates="empresa", foreign_keys="Cliente.empresa_id"
     )
 
 
@@ -75,20 +137,37 @@ class Usuario(SuscripcionMixin, Base):
         UUID(as_uuid=True), ForeignKey("empresas.id"), nullable=True
     )
 
-    # Datos operativos del chofer — NULL para admins de empresa (no manejan) y
-    # para cuentas creadas antes de que estos campos existieran.
+    # Teléfono de contacto — NULL para admins de empresa (no manejan) y para
+    # cuentas creadas antes de que este campo existiera. Los datos del vehículo
+    # viven en Vehiculo (usuario.vehiculos), no acá.
     telefono: Mapped[str | None] = mapped_column(String(30), nullable=True)
-    tipo_vehiculo: Mapped[TipoVehiculo | None] = mapped_column(
-        Enum(TipoVehiculo, name="tipo_vehiculo", native_enum=False), nullable=True
-    )
-    patente: Mapped[str | None] = mapped_column(String(12), nullable=True)
-    capacidad_carga_kg: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     activo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
     empresa: Mapped["Empresa | None"] = relationship(
         back_populates="usuarios", foreign_keys=[empresa_id]
     )
+    vehiculos: Mapped[list["Vehiculo"]] = relationship(
+        back_populates="usuario",
+        foreign_keys="Vehiculo.usuario_id",
+        order_by="Vehiculo.fecha_creacion.desc()",
+    )
+    depositos: Mapped[list["Deposito"]] = relationship(
+        back_populates="usuario", foreign_keys="Deposito.usuario_id"
+    )
+    clientes: Mapped[list["Cliente"]] = relationship(
+        back_populates="usuario", foreign_keys="Cliente.usuario_id"
+    )
+    rutas: Mapped[list["Ruta"]] = relationship(
+        back_populates="chofer", foreign_keys="Ruta.chofer_id"
+    )
+
+    @property
+    def vehiculo(self) -> "Vehiculo | None":
+        """Vehículo actualmente asignado — el más reciente si por algún motivo
+        hay más de uno (Vehiculo.usuario_id no lleva historial, solo el estado
+        actual, y nada fuerza a un único vehículo activo a nivel de DB)."""
+        return self.vehiculos[0] if self.vehiculos else None
 
     def __repr__(self) -> str:
         return f"<Usuario {self.email} rol={self.rol.value}>"
@@ -121,3 +200,228 @@ class CodigoInvitacion(Base):
     )
     creado_por: Mapped["Usuario"] = relationship(foreign_keys=[creado_por_usuario_id])
     usado_por: Mapped["Usuario | None"] = relationship(foreign_keys=[usado_por_usuario_id])
+
+
+class Vehiculo(DuenioMixin, Base):
+    __tablename__ = "vehiculos"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+
+    tipo_vehiculo: Mapped[TipoVehiculo] = mapped_column(
+        Enum(TipoVehiculo, name="tipo_vehiculo", native_enum=False), nullable=False
+    )
+    patente: Mapped[str] = mapped_column(String(12), unique=True, nullable=False)
+    capacidad_carga_kg: Mapped[int] = mapped_column(Integer, nullable=False)
+    # Chofer actualmente asignado (usuario_id, heredado de DuenioMixin). NULL =
+    # vehículo de reserva sin asignar (solo posible con empresa_id seteado; un
+    # independiente siempre tiene uno). Sin historial de reasignaciones.
+    activo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    fecha_creacion: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    empresa: Mapped["Empresa | None"] = relationship(
+        back_populates="vehiculos", foreign_keys="Vehiculo.empresa_id"
+    )
+    usuario: Mapped["Usuario | None"] = relationship(
+        back_populates="vehiculos", foreign_keys="Vehiculo.usuario_id"
+    )
+    rutas: Mapped[list["Ruta"]] = relationship(back_populates="vehiculo")
+
+
+class Deposito(DuenioMixin, Base):
+    __tablename__ = "depositos"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+
+    nombre: Mapped[str] = mapped_column(String(200), nullable=False)
+    latitud: Mapped[float] = mapped_column(Float, nullable=False)
+    longitud: Mapped[float] = mapped_column(Float, nullable=False)
+    ventana_inicio: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    ventana_fin: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    activo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    fecha_creacion: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    empresa: Mapped["Empresa | None"] = relationship(
+        back_populates="depositos", foreign_keys="Deposito.empresa_id"
+    )
+    usuario: Mapped["Usuario | None"] = relationship(
+        back_populates="depositos", foreign_keys="Deposito.usuario_id"
+    )
+    rutas: Mapped[list["Ruta"]] = relationship(back_populates="deposito")
+
+
+class Cliente(DuenioMixin, Base):
+    __tablename__ = "clientes"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+
+    nombre: Mapped[str] = mapped_column(String(200), nullable=False)
+    direccion: Mapped[str] = mapped_column(String(300), nullable=False)
+    latitud: Mapped[float] = mapped_column(Float, nullable=False)
+    longitud: Mapped[float] = mapped_column(Float, nullable=False)
+    telefono: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    # Defaults reutilizados al armar una ruta nueva — cada ParadaRuta puede
+    # pisarlos puntualmente (ver snapshot en ParadaRuta) sin tocar el Cliente.
+    demanda_carga_default: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    tiempo_servicio_default: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    ventana_inicio_default: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    ventana_fin_default: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    activo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    fecha_creacion: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    empresa: Mapped["Empresa | None"] = relationship(
+        back_populates="clientes", foreign_keys="Cliente.empresa_id"
+    )
+    usuario: Mapped["Usuario | None"] = relationship(
+        back_populates="clientes", foreign_keys="Cliente.usuario_id"
+    )
+
+
+class Ruta(Base):
+    __tablename__ = "rutas"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+
+    chofer_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=False
+    )
+    vehiculo_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("vehiculos.id"), nullable=False
+    )
+    deposito_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("depositos.id"), nullable=False
+    )
+    # Quién confirmó/asignó la ruta (un admin de empresa, o el propio chofer
+    # si es independiente) — distinto de chofer_id cuando es una empresa.
+    creado_por_usuario_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=False
+    )
+
+    fecha: Mapped[date] = mapped_column(Date, nullable=False)
+    tipo_problema: Mapped[TipoProblema] = mapped_column(
+        Enum(TipoProblema, name="tipo_problema", native_enum=False), nullable=False
+    )
+    estado: Mapped[EstadoRuta] = mapped_column(
+        Enum(EstadoRuta, name="estado_ruta", native_enum=False),
+        nullable=False,
+        default=EstadoRuta.PLANIFICADA,
+    )
+    # Totales que devuelve el solver al confirmar — distancia en metros
+    # (matriz OSRM), tiempo en minutos, igual que routing/solver.py.
+    distancia_total_m: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    tiempo_total_min: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    hora_inicio_real: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    hora_fin_real: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    fecha_creacion: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    chofer: Mapped["Usuario"] = relationship(back_populates="rutas", foreign_keys=[chofer_id])
+    vehiculo: Mapped["Vehiculo"] = relationship(back_populates="rutas", foreign_keys=[vehiculo_id])
+    deposito: Mapped["Deposito"] = relationship(back_populates="rutas", foreign_keys=[deposito_id])
+    creado_por: Mapped["Usuario"] = relationship(foreign_keys=[creado_por_usuario_id])
+    paradas: Mapped[list["ParadaRuta"]] = relationship(
+        back_populates="ruta", order_by="ParadaRuta.orden"
+    )
+    incidencias: Mapped[list["Incidencia"]] = relationship(back_populates="ruta")
+
+
+class ParadaRuta(Base):
+    __tablename__ = "paradas_ruta"
+    __table_args__ = (UniqueConstraint("ruta_id", "orden"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+
+    ruta_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("rutas.id"), nullable=False
+    )
+    cliente_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("clientes.id"), nullable=False
+    )
+    orden: Mapped[int] = mapped_column(Integer, nullable=False)
+    estado: Mapped[EstadoParada] = mapped_column(
+        Enum(EstadoParada, name="estado_parada", native_enum=False),
+        nullable=False,
+        default=EstadoParada.PENDIENTE,
+    )
+
+    # Snapshot del Cliente al momento de confirmar la ruta — si el Cliente
+    # cambia de dirección/ventana después, esta parada ya asignada no se mueve.
+    nombre_snapshot: Mapped[str] = mapped_column(String(200), nullable=False)
+    direccion_snapshot: Mapped[str] = mapped_column(String(300), nullable=False)
+    latitud_snapshot: Mapped[float] = mapped_column(Float, nullable=False)
+    longitud_snapshot: Mapped[float] = mapped_column(Float, nullable=False)
+    demanda_carga_snapshot: Mapped[int] = mapped_column(Integer, nullable=False)
+    tiempo_servicio_snapshot: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    ventana_inicio_snapshot: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    ventana_fin_snapshot: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    hora_estimada_llegada: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    hora_real_llegada: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    hora_real_salida: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    ruta: Mapped["Ruta"] = relationship(back_populates="paradas", foreign_keys=[ruta_id])
+    cliente: Mapped["Cliente"] = relationship(foreign_keys=[cliente_id])
+    prueba_entrega: Mapped["PruebaEntrega | None"] = relationship(
+        back_populates="parada", uselist=False
+    )
+    incidencias: Mapped[list["Incidencia"]] = relationship(back_populates="parada")
+
+
+class PruebaEntrega(Base):
+    __tablename__ = "pruebas_entrega"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+
+    parada_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("paradas_ruta.id"), unique=True, nullable=False
+    )
+    foto_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    firma_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    nombre_receptor: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    notas: Mapped[str | None] = mapped_column(Text, nullable=True)
+    fecha_hora: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    parada: Mapped["ParadaRuta"] = relationship(
+        back_populates="prueba_entrega", foreign_keys=[parada_id]
+    )
+
+
+class Incidencia(Base):
+    __tablename__ = "incidencias"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+
+    ruta_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("rutas.id"), nullable=False
+    )
+    # NULL = incidencia general de la ruta (ej. falla del vehículo), no atada
+    # a una parada puntual.
+    parada_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("paradas_ruta.id"), nullable=True
+    )
+    tipo: Mapped[TipoIncidencia] = mapped_column(
+        Enum(TipoIncidencia, name="tipo_incidencia", native_enum=False), nullable=False
+    )
+    descripcion: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reportado_por_usuario_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=False
+    )
+    fecha_hora: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    ruta: Mapped["Ruta"] = relationship(back_populates="incidencias", foreign_keys=[ruta_id])
+    parada: Mapped["ParadaRuta | None"] = relationship(
+        back_populates="incidencias", foreign_keys=[parada_id]
+    )
+    reportado_por: Mapped["Usuario"] = relationship(foreign_keys=[reportado_por_usuario_id])

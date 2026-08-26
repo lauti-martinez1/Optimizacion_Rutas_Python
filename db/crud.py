@@ -7,7 +7,15 @@ from typing import Protocol
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from db.modelos import CodigoInvitacion, Empresa, PlanSuscripcion, RolUsuario, TipoVehiculo, Usuario
+from db.modelos import (
+    CodigoInvitacion,
+    Empresa,
+    PlanSuscripcion,
+    RolUsuario,
+    TipoVehiculo,
+    Usuario,
+    Vehiculo,
+)
 from db.sesion import guardar
 
 ALFABETO_CODIGO = string.ascii_uppercase + string.digits
@@ -29,6 +37,10 @@ def obtener_usuario_por_email(db: Session, email: str) -> Usuario | None:
     return db.execute(select(Usuario).where(Usuario.email == email)).scalar_one_or_none()
 
 
+def obtener_vehiculo_por_patente(db: Session, patente: str) -> Vehiculo | None:
+    return db.execute(select(Vehiculo).where(Vehiculo.patente == patente)).scalar_one_or_none()
+
+
 def crear_empresa(db: Session, nombre: str) -> Empresa:
     return guardar(db, Empresa(nombre=nombre, plan=PlanSuscripcion.PRUEBA))
 
@@ -39,8 +51,10 @@ def crear_chofer(
     contrasena_hash: str,
     empresa_id: uuid.UUID | None = None,
 ) -> Usuario:
-    """Chofer independiente (empresa_id=None) o chofer vinculado a una empresa."""
-    return guardar(
+    """Chofer independiente (empresa_id=None) o chofer vinculado a una empresa.
+    Crea también su Vehiculo — el registro sigue pidiendo esos datos juntos,
+    aunque ahora vivan en tablas separadas."""
+    usuario = guardar(
         db,
         Usuario(
             email=datos.email,
@@ -49,12 +63,20 @@ def crear_chofer(
             rol=RolUsuario.CHOFER,
             empresa_id=empresa_id,
             telefono=datos.telefono,
-            tipo_vehiculo=datos.tipo_vehiculo,
-            patente=datos.patente,
-            capacidad_carga_kg=datos.capacidad_carga_kg,
             plan=PlanSuscripcion.PRUEBA,
         ),
     )
+    guardar(
+        db,
+        Vehiculo(
+            empresa_id=empresa_id,
+            usuario_id=usuario.id,
+            tipo_vehiculo=datos.tipo_vehiculo,
+            patente=datos.patente,
+            capacidad_carga_kg=datos.capacidad_carga_kg,
+        ),
+    )
+    return usuario
 
 
 def crear_admin(

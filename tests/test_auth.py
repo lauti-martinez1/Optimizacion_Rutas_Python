@@ -42,8 +42,8 @@ def test_registro_chofer_independiente(client):
     cuerpo = respuesta.json()
     assert cuerpo["rol"] == "chofer"
     assert cuerpo["empresa_id"] is None
-    assert cuerpo["tipo_vehiculo"] == "moto"
-    assert cuerpo["capacidad_carga_kg"] == 50
+    assert cuerpo["vehiculo"]["tipo_vehiculo"] == "moto"
+    assert cuerpo["vehiculo"]["capacidad_carga_kg"] == 50
     assert "token_acceso" in respuesta.cookies
 
 
@@ -63,13 +63,26 @@ def test_registro_chofer_independiente_email_duplicado(client):
     assert respuesta.status_code == 409
 
 
+def test_registro_chofer_patente_duplicada_da_409_no_email_duplicado(client):
+    """La patente vive en Vehiculo, no en Usuario — un choque de patente no
+    debe confundirse con MENSAJE_EMAIL_DUPLICADO (dos choferes distintos,
+    emails distintos, misma patente por error de tipeo)."""
+    client.post(f"{BASE}/registro/chofer-independiente", json=_payload_chofer("patente1@gmail.com"))
+    respuesta = client.post(
+        f"{BASE}/registro/chofer-independiente",
+        json=_payload_chofer("patente2@gmail.com", contrasena="otraClave123"),
+    )
+    assert respuesta.status_code == 409
+    assert "patente" in respuesta.json()["detail"].lower()
+
+
 def test_registro_empresa_crea_usuario_admin(client):
     respuesta = _registrar_empresa(client)
     assert respuesta.status_code == 201
     cuerpo = respuesta.json()
     assert cuerpo["usuario"]["rol"] == "admin"
     assert cuerpo["usuario"]["empresa_id"] == cuerpo["empresa"]["id"]
-    assert cuerpo["usuario"]["tipo_vehiculo"] is None
+    assert cuerpo["usuario"]["vehiculo"] is None
     assert cuerpo["empresa"]["nombre"] == "Distribuidora Sur"
 
 

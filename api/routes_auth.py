@@ -16,6 +16,7 @@ router = APIRouter(prefix="/api/v1/auth", tags=["Autenticación"])
 NOMBRE_COOKIE = "token_acceso"
 
 MENSAJE_EMAIL_DUPLICADO = "El email ya está registrado."
+MENSAJE_PATENTE_DUPLICADA = "La patente ya está registrada."
 
 
 def _setear_cookie_sesion(response: Response, usuario: Usuario) -> None:
@@ -48,12 +49,22 @@ def _crear_cuenta(db: Session, email: str, crear: Callable[[], Usuario]) -> Usua
         raise HTTPException(status_code=409, detail=MENSAJE_EMAIL_DUPLICADO)
 
 
+def _verificar_patente_disponible(db: Session, patente: str) -> None:
+    """Chequeo dedicado (no delegado a _crear_cuenta, que es genérico para
+    empresa+chofer): una patente duplicada no es un conflicto de email, y sin
+    esto el IntegrityError de la unique constraint de Vehiculo.patente se
+    traduciría erróneamente en MENSAJE_EMAIL_DUPLICADO."""
+    if crud.obtener_vehiculo_por_patente(db, patente):
+        raise HTTPException(status_code=409, detail=MENSAJE_PATENTE_DUPLICADA)
+
+
 @router.post(
     "/registro/chofer-independiente", response_model=schemas.UsuarioPublico, status_code=201
 )
 def registrar_chofer_independiente(
     datos: schemas.RegistroChoferIndependiente, response: Response, db: Session = Depends(get_db)
 ):
+    _verificar_patente_disponible(db, datos.patente)
     usuario = _crear_cuenta(
         db,
         datos.email,
@@ -92,6 +103,7 @@ def registrar_chofer_invitado(
         raise HTTPException(status_code=404, detail="Código de invitación inexistente.")
     if invitacion.usado:
         raise HTTPException(status_code=409, detail="El código de invitación ya fue utilizado.")
+    _verificar_patente_disponible(db, datos.patente)
 
     usuario = _crear_cuenta(
         db,
