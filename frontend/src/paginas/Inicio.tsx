@@ -13,6 +13,7 @@ export function Inicio() {
   const usuario = useAuthStore((estado) => estado.usuario);
   const cerrarSesion = useAuthStore((estado) => estado.cerrarSesion);
   const [pestana, setPestana] = useState<Pestana>("inicio");
+  const [abrirEdicionRuta, setAbrirEdicionRuta] = useState(false);
 
   // La gestión de lugares es para el chofer particular: arma su propia ruta
   // cliente por cliente. Un chofer de empresa recibe la ruta ya asignada por
@@ -22,6 +23,11 @@ export function Inicio() {
   async function manejarLogout() {
     await cerrarSesion();
     navigate("/login");
+  }
+
+  function irAEditarRuta() {
+    setAbrirEdicionRuta(true);
+    setPestana("lugares");
   }
 
   return (
@@ -64,9 +70,13 @@ export function Inicio() {
 
       <main className="contenido-app">
         {pestana === "lugares" && esChoferParticular ? (
-          <PestanaLugares onRutaConfirmada={() => setPestana("inicio")} />
+          <PestanaLugares
+            onRutaConfirmada={() => setPestana("inicio")}
+            abrirEdicionRuta={abrirEdicionRuta}
+            onAbrioEdicionRuta={() => setAbrirEdicionRuta(false)}
+          />
         ) : (
-          <PestanaInicio />
+          <PestanaInicio onEditar={irAEditarRuta} />
         )}
       </main>
     </div>

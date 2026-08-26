@@ -13,6 +13,7 @@ from db.modelos import (
     Deposito,
     Duenio,
     Empresa,
+    EstadoParada,
     EstadoRuta,
     ParadaRuta,
     PlanSuscripcion,
@@ -338,3 +339,43 @@ def crear_ruta(
             ),
         )
     return ruta
+
+
+def cancelar_ruta(db: Session, ruta: Ruta) -> None:
+    ruta.estado = EstadoRuta.CANCELADA
+    guardar(db, ruta)
+
+
+def iniciar_ruta(db: Session, ruta: Ruta) -> Ruta:
+    """Arranca el día: la ruta pasa a en_curso y la primera parada (orden=0)
+    pasa a ser el objetivo actual — ver EstadoParada.EN_CURSO."""
+    ruta.estado = EstadoRuta.EN_CURSO
+    ruta.hora_inicio_real = datetime.now(UTC)
+    guardar(db, ruta)
+    if ruta.paradas:
+        ruta.paradas[0].estado = EstadoParada.EN_CURSO
+        guardar(db, ruta.paradas[0])
+    return ruta
+
+
+def completar_parada(db: Session, ruta: Ruta, parada: ParadaRuta) -> Ruta:
+    """Marca `parada` como visitada y avanza la siguiente (por `orden`) a
+    en_curso. Si no queda ninguna pendiente, cierra la ruta entera."""
+    parada.estado = EstadoParada.COMPLETADA
+    parada.hora_real_salida = datetime.now(UTC)
+    guardar(db, parada)
+
+    siguientes = [p for p in ruta.paradas if p.orden > parada.orden]
+    if siguientes:
+        siguiente = min(siguientes, key=lambda p: p.orden)
+        siguiente.estado = EstadoParada.EN_CURSO
+        guardar(db, siguiente)
+    else:
+        ruta.estado = EstadoRuta.COMPLETADA
+        ruta.hora_fin_real = datetime.now(UTC)
+        guardar(db, ruta)
+    return ruta
+
+
+def obtener_parada_de_ruta(db: Session, ruta: Ruta, parada_id: uuid.UUID) -> ParadaRuta | None:
+    return next((p for p in ruta.paradas if p.id == parada_id), None)

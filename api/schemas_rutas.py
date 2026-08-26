@@ -28,6 +28,13 @@ class RutaPreview(BaseModel):
     paradas: list[ParadaPreview]
     distancia_total_m: int
     carga_total_kg: int
+    distancia_sin_optimizar_m: int
+    ahorro_m: int
+    explicacion: str
+
+
+class GeometriaRuta(BaseModel):
+    puntos: list[tuple[float, float]]
 
 
 class ParadaRutaPublica(BaseModel):
@@ -44,6 +51,13 @@ class ParadaRutaPublica(BaseModel):
     demanda_carga_snapshot: int
 
 
+class DepositoResumen(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    latitud: float
+    longitud: float
+
+
 class RutaPublica(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -52,4 +66,5 @@ class RutaPublica(BaseModel):
     estado: EstadoRuta
     distancia_total_m: int | None
     fecha_creacion: datetime
+    deposito: DepositoResumen
     paradas: list[ParadaRutaPublica]

@@ -23,6 +23,13 @@ export interface RutaPreview {
   paradas: ParadaPreview[];
   distancia_total_m: number;
   carga_total_kg: number;
+  distancia_sin_optimizar_m: number;
+  ahorro_m: number;
+  explicacion: string;
+}
+
+export interface GeometriaRuta {
+  puntos: [number, number][];
 }
 
 export interface ParadaRutaPublica {
@@ -37,11 +44,17 @@ export interface ParadaRutaPublica {
   demanda_carga_snapshot: number;
 }
 
+export interface DepositoResumen {
+  latitud: number;
+  longitud: number;
+}
+
 export interface RutaPublica {
   id: string;
   fecha: string;
   estado: EstadoRuta;
   distancia_total_m: number | null;
   fecha_creacion: string;
+  deposito: DepositoResumen;
   paradas: ParadaRutaPublica[];
 }

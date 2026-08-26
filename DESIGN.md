@@ -67,6 +67,16 @@ components:
     textColor: "{colors.texto-fuerte}"
     rounded: "{rounded.lg}"
     height: "50px"
+  button-exito:
+    backgroundColor: "{colors.exito}"
+    textColor: "{colors.blanco}"
+    rounded: "{rounded.lg}"
+    height: "50px"
+  button-peligro:
+    backgroundColor: "{colors.blanco}"
+    textColor: "{colors.peligro}"
+    rounded: "{rounded.lg}"
+    height: "50px"
   input-campo:
     backgroundColor: "{colors.blanco}"
     textColor: "{colors.texto-fuerte}"
@@ -74,9 +84,11 @@ components:
     height: "46px"
     padding: "0 14px"
   card-tarjeta:
-    backgroundColor: "{colors.superficie}"
+    backgroundColor: "{colors.blanco}"
     rounded: "{rounded.xl}"
     padding: "32px 28px"
+  chip-estado:
+    rounded: "{rounded.pill}"
 ---
 
 # Design System: Optimización de Rutas — Gran Mendoza
@@ -164,17 +176,23 @@ Radios grandes y consistentes: 8px en controles chicos, 10px en inputs, 14–16p
 
 ### Buttons
 - **Shape:** radio 14px (`--radio-lg`), ancho completo, alto fijo 50px.
-- **Primary:** fondo azul confianza, texto blanco, sombra de color a juego; en hover se aclara levemente (`filter: brightness(1.06)`) y la sombra crece.
-- **Secondary:** fondo blanco, borde hairline, texto fuerte; en hover pasa a fondo gris base.
+- **Primary:** fondo azul confianza, texto blanco, sombra de color a juego; en hover se aclara levemente (`filter: brightness(1.06)`) y la sombra crece. Acción principal/creación (guardar, optimizar, agregar).
+- **Secondary:** fondo blanco, borde hairline, texto fuerte; en hover pasa a fondo gris base. Acción neutra (cancelar, volver, editar).
+- **Éxito** (`--color-exito`, mismo shape/alto que Primary): reservado a acciones que hacen avanzar el ciclo de vida de una ruta — confirmar, iniciar, marcar parada visitada. No es un primary alternativo: dos acentos libres en la misma pantalla (azul + verde sin motivo) rompen la regla de abajo, así que solo aparece cuando hay una progresión real que señalar.
+- **Peligro** (outline: fondo blanco, texto y borde `--color-peligro`; hover pasa a `--color-peligro-tint`): exclusivo para acciones destructivas irreversibles (eliminar ruta). Deliberadamente no es un fill sólido — la acción más deseada de la pantalla ya tiene el peso visual (azul o verde), destructivo no debe competir por esa jerarquía.
+- **Chica** (modificador `--chica`: alto 36px, ancho automático, padding 16px): variante compacta para una acción puntual dentro de una fila de lista (ej. "Marcar visitada" en una tarjeta de parada) — nunca para la acción principal de una pantalla.
 - **Focus:** anillo de foco temático (2px azul confianza, offset 3px) — nunca el outline azul genérico del navegador.
 - **Estados:** `disabled` baja opacidad a 0.55 y cancela el transform de press; `cargando` reemplaza el texto por "Un momento…" en vez de un spinner.
 
 ### Cards / Containers
-- **Corner Style:** 16px (`--radio-xl`).
-- **Background:** superficie sólida (#F5F6F8) sobre fondo plano; vidrio translúcido (`rgba(245,246,248,0.86)` + `backdrop-filter: blur(20px) saturate(140%)`) sobre foto.
-- **Shadow Strategy:** ver Elevation & Depth — sombra sola, nunca junto a un borde grueso.
+- **Corner Style:** 16px (`--radio-xl`) en tarjetas grandes, 14px (`--radio-lg`) en filas de lista.
+- **Background:** blanco sólido en pantallas operativas (post-login) — el fondo de página (`--color-fondo`, gris) es lo bastante cercano a `--color-superficie` que dos tarjetas apiladas ahí se leían como una sola masa gris; blanco puro da la separación real que la regla de elevación de abajo asume. `--color-superficie` sigue siendo el fondo de la cabecera/pestañas (un peldaño de jerarquía entre el fondo de página y las tarjetas de contenido). Vidrio translúcido (`rgba(245,246,248,0.86)` + `backdrop-filter: blur(20px) saturate(140%)`) sigue siendo exclusivo de las pantallas de login/registro, sobre foto.
+- **Shadow Strategy:** ver Elevation & Depth — sombra sola, nunca junto a un borde grueso. Excepción con rol distinto (no elevación): una tarjeta de parada "en curso" lleva un anillo `--color-exito` de 1.5px para señalar cuál es la próxima parada — es el mismo tipo de "borde con propósito distinto a elevación" que ya describe el borde de vidrio, aplicado a estado en vez de a legibilidad de canto.
 - **Border:** hairline 1px, blanco semitransparente en la variante de vidrio (definición de canto, no elevación).
-- **Internal Padding:** 32px vertical / 28px horizontal.
+- **Internal Padding:** 32px vertical / 28px horizontal en tarjetas grandes; 14px/16px en filas de lista compactas.
+
+### Chip de estado
+Píldora (`--radio-pill`) para el estado de una `Ruta`: fondo = tinte del color semántico, texto = el color semántico sólido, mismo patrón que ya usan los tintes de Peligro. `planificada` usa azul confianza al 10% (no hay tinte de marca predefinido, es el único chip que no reusa un tinte semántico existente); `en_curso`/`completada` usan `--color-exito-tint`; `cancelada` usa `--color-peligro-tint`. `en_curso` suma un punto de 6px con el mismo pulso continuo que ya define el Overlay de Ruta — misma convención de "el destino/lo activo pulsa", reutilizada en vez de inventada de nuevo.
 
 ### Inputs / Fields
 - **Style:** fondo blanco sólido (incluso sobre tarjetas de vidrio, para mantener el contraste de escritura), borde `--color-borde-input`, radio 10px, alto 46px.

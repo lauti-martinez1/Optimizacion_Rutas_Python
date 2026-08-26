@@ -1,5 +1,5 @@
 import { fetchApi } from "./cliente";
-import type { OptimizarRutaRequest, RutaPreview, RutaPublica } from "../tipos/ruta";
+import type { GeometriaRuta, OptimizarRutaRequest, RutaPreview, RutaPublica } from "../tipos/ruta";
 
 const BASE = "/api/v1/rutas";
 
@@ -17,6 +17,31 @@ export function confirmarRuta(datos: OptimizarRutaRequest) {
   });
 }
 
+export function editarRuta(datos: OptimizarRutaRequest) {
+  return fetchApi<RutaPublica>(`${BASE}/activa`, {
+    method: "PUT",
+    body: JSON.stringify(datos),
+  });
+}
+
+export function eliminarRuta() {
+  return fetchApi<{ mensaje: string }>(`${BASE}/activa`, { method: "DELETE" });
+}
+
+export function iniciarRuta() {
+  return fetchApi<RutaPublica>(`${BASE}/activa/iniciar`, { method: "POST" });
+}
+
+export function completarParada(paradaId: string) {
+  return fetchApi<RutaPublica>(`${BASE}/activa/paradas/${paradaId}/completar`, {
+    method: "POST",
+  });
+}
+
 export function obtenerRutaActiva() {
   return fetchApi<RutaPublica | null>(`${BASE}/activa`);
+}
+
+export function obtenerGeometriaRutaActiva() {
+  return fetchApi<GeometriaRuta>(`${BASE}/activa/geometria`);
 }

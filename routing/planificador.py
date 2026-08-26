@@ -31,6 +31,12 @@ class ResultadoPlanificacion:
     paradas: list[ParadaPlanificada]
     distancia_total_m: int
     carga_total_kg: int
+    distancia_sin_optimizar_m: int
+    explicacion: str
+
+
+def _distancia_recorrido(matriz_distancias: list, secuencia_nodos: list[int]) -> int:
+    return sum(int(matriz_distancias[a][b]) for a, b in pairwise(secuencia_nodos))
 
 
 def planificar_ruta(
@@ -93,10 +99,30 @@ def planificar_ruta(
         )
         orden += 1
 
+    # Comparación honesta: mismas distancias reales de OSRM, orden pedido
+    # (tal como el chofer fue marcando los lugares) vs. orden que resolvió
+    # el solver — así el ahorro es un dato real, no una estimación.
+    indice_por_cliente = {cliente.id: i + 1 for i, cliente in enumerate(clientes)}
+    secuencia_sin_optimizar = [0] + [indice_por_cliente[id_] for id_ in cargas_por_cliente] + [0]
+    distancia_sin_optimizar_m = _distancia_recorrido(matriz_distancias, secuencia_sin_optimizar)
+    distancia_total_m = resultado["rutas"][0]["distancia_recorrida_metros"]
+
+    porcentaje_carga = round(
+        100 * resultado["rutas"][0]["carga_total"] / vehiculo.capacidad_carga_kg
+    )
+    explicacion = (
+        f"Elegimos este orden para recorrer la menor distancia posible entre las "
+        f"{len(paradas)} paradas, respetando la capacidad de tu vehículo "
+        f"({resultado['rutas'][0]['carga_total']}/{vehiculo.capacidad_carga_kg} kg, "
+        f"{porcentaje_carga}%)."
+    )
+
     return ResultadoPlanificacion(
         vehiculo=vehiculo,
         deposito=deposito,
         paradas=paradas,
-        distancia_total_m=resultado["rutas"][0]["distancia_recorrida_metros"],
+        distancia_total_m=distancia_total_m,
         carga_total_kg=resultado["rutas"][0]["carga_total"],
+        distancia_sin_optimizar_m=distancia_sin_optimizar_m,
+        explicacion=explicacion,
     )

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { listarDepositos } from "../../api/depositos";
-import { confirmarRuta, optimizarRuta } from "../../api/rutas";
+import { confirmarRuta, editarRuta, obtenerRutaActiva, optimizarRuta } from "../../api/rutas";
 import { useEnvioFormulario } from "../../hooks/useEnvioFormulario";
 import type { ClientePublico } from "../../tipos/cliente";
 import type { RutaPreview } from "../../tipos/ruta";
@@ -10,6 +10,9 @@ import { Boton } from "../ui/Boton";
 
 interface Props {
   clientes: ClientePublico[];
+  /** true: reabre la ruta planificada de hoy con su selección precargada y
+   * al confirmar la reemplaza (PUT), en vez de crear una nueva (POST). */
+  modoEdicion?: boolean;
   onConfirmada: () => void;
   onCancelar: () => void;
 }
@@ -21,17 +24,30 @@ type Vista = "cargando" | "deposito" | "seleccion" | "preview";
 // desmarca el checkbox), evita duplicar el estado en dos lugares distintos.
 type Seleccion = Record<string, number>;
 
-export function FlujoArmarRuta({ clientes, onConfirmada, onCancelar }: Props) {
+export function FlujoArmarRuta({ clientes, modoEdicion = false, onConfirmada, onCancelar }: Props) {
   const [vista, setVista] = useState<Vista>("cargando");
   const [seleccion, setSeleccion] = useState<Seleccion>({});
   const [preview, setPreview] = useState<RutaPreview | null>(null);
   const { error, enviando, enviar } = useEnvioFormulario();
 
   useEffect(() => {
+    if (modoEdicion) {
+      // Si ya hay una ruta hoy, su depósito ya existe — no hace falta el
+      // chequeo de depósito, directo a precargar la selección actual.
+      obtenerRutaActiva().then((ruta) => {
+        const seleccionActual: Seleccion = {};
+        for (const parada of ruta?.paradas ?? []) {
+          seleccionActual[parada.cliente_id] = parada.demanda_carga_snapshot;
+        }
+        setSeleccion(seleccionActual);
+        setVista("seleccion");
+      });
+      return;
+    }
     listarDepositos().then((depositos) => {
       setVista(depositos.length > 0 ? "seleccion" : "deposito");
     });
-  }, []);
+  }, [modoEdicion]);
 
   function alternarSeleccion(clienteId: string, marcado: boolean) {
     setSeleccion((actual) => {
@@ -63,9 +79,10 @@ export function FlujoArmarRuta({ clientes, onConfirmada, onCancelar }: Props) {
 
   function manejarConfirmar() {
     enviar(async () => {
-      await confirmarRuta({ paradas: paradasSeleccionadas() });
+      const guardar = modoEdicion ? editarRuta : confirmarRuta;
+      await guardar({ paradas: paradasSeleccionadas() });
       onConfirmada();
-    }, "No se pudo confirmar la ruta.");
+    }, "No se pudo guardar la ruta.");
   }
 
   if (vista === "cargando") {
@@ -79,10 +96,19 @@ export function FlujoArmarRuta({ clientes, onConfirmada, onCancelar }: Props) {
   if (vista === "preview" && preview) {
     return (
       <div className="flujo-ruta">
-        <p className="texto-ayuda">
-          {preview.paradas.length} paradas · {(preview.distancia_total_m / 1000).toFixed(1)} km ·{" "}
-          {preview.carga_total_kg} kg
-        </p>
+        <div className="tarjeta-contenido">
+          <p className="tarjeta-contenido__titulo">
+            {preview.paradas.length} paradas · {(preview.distancia_total_m / 1000).toFixed(1)} km ·{" "}
+            {preview.carga_total_kg} kg
+          </p>
+          <p className="texto-ayuda">{preview.explicacion}</p>
+          {preview.ahorro_m > 0 && (
+            <p className="texto-ahorro">
+              Te ahorrás {(preview.ahorro_m / 1000).toFixed(1)} km recorridos comparado con
+              visitarlos en el orden en que los elegiste.
+            </p>
+          )}
+        </div>
         {error && <div className="error-formulario">{error}</div>}
         <ol className="lista-lugares">
           {preview.paradas.map((parada) => (
@@ -103,8 +129,8 @@ export function FlujoArmarRuta({ clientes, onConfirmada, onCancelar }: Props) {
           <Boton type="button" variante="secundario" onClick={() => setVista("seleccion")}>
             Volver
           </Boton>
-          <Boton type="button" cargando={enviando} onClick={manejarConfirmar}>
-            Confirmar ruta
+          <Boton type="button" variante="exito" cargando={enviando} onClick={manejarConfirmar}>
+            {modoEdicion ? "Guardar cambios" : "Confirmar ruta"}
           </Boton>
         </div>
       </div>

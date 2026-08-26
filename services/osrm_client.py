@@ -34,3 +34,31 @@ def obtener_matriz_osrm(coordenadas: list) -> dict:
 
     except requests.exceptions.RequestException as e:
         raise Exception(f"Falla de conexión con la capa de tránsito (OSRM): {e!s}")
+
+
+def obtener_geometria_osrm(coordenadas: list) -> list[tuple[float, float]]:
+    """Traza real (siguiendo calles) que pasa por `coordenadas` en orden —
+    para dibujar el camino en el mapa, no para calcular costos (eso lo hace
+    obtener_matriz_osrm). Devuelve puntos en (latitud, longitud), al revés
+    del GeoJSON que da OSRM, para que Leaflet los use sin transformar."""
+    coords_formateadas = [f"{coord['longitud']},{coord['latitud']}" for coord in coordenadas]
+    string_coordenadas = ";".join(coords_formateadas)
+
+    url = (
+        f"{settings.osrm_base_url}/route/v1/driving/{string_coordenadas}"
+        "?overview=full&geometries=geojson"
+    )
+
+    try:
+        respuesta = requests.get(url, timeout=10)
+        respuesta.raise_for_status()
+        datos = respuesta.json()
+
+        if datos.get("code") != "Ok":
+            raise ValueError(f"Error de OSRM: {datos.get('message', 'Desconocido')}")
+
+        coordenadas_geojson = datos["routes"][0]["geometry"]["coordinates"]
+        return [(lat, lon) for lon, lat in coordenadas_geojson]
+
+    except requests.exceptions.RequestException as e:
+        raise Exception(f"Falla de conexión con la capa de tránsito (OSRM): {e!s}")
