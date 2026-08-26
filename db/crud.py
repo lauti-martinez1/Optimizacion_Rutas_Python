@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from db.modelos import (
+    Cliente,
     CodigoInvitacion,
     Empresa,
     PlanSuscripcion,
@@ -31,6 +32,17 @@ class DatosChofer(Protocol):
     tipo_vehiculo: TipoVehiculo
     patente: str
     capacidad_carga_kg: int
+
+
+class DatosCliente(Protocol):
+    """Forma estructural que necesita crear_cliente — cumplida por
+    api/schemas_clientes.py.ClienteCrear sin acoplar este módulo a Pydantic."""
+
+    nombre: str
+    direccion: str
+    latitud: float
+    longitud: float
+    telefono: str | None
 
 
 def obtener_usuario_por_email(db: Session, email: str) -> Usuario | None:
@@ -142,3 +154,51 @@ def marcar_codigo_usado(db: Session, invitacion: CodigoInvitacion, usuario_id: u
     invitacion.usado_por_usuario_id = usuario_id
     invitacion.fecha_uso = datetime.now(UTC)
     guardar(db, invitacion)
+
+
+def crear_cliente(
+    db: Session,
+    datos: DatosCliente,
+    empresa_id: uuid.UUID | None,
+    usuario_id: uuid.UUID | None,
+) -> Cliente:
+    return guardar(
+        db,
+        Cliente(
+            empresa_id=empresa_id,
+            usuario_id=usuario_id,
+            nombre=datos.nombre,
+            direccion=datos.direccion,
+            latitud=datos.latitud,
+            longitud=datos.longitud,
+            telefono=datos.telefono,
+        ),
+    )
+
+
+def listar_clientes(
+    db: Session, empresa_id: uuid.UUID | None, usuario_id: uuid.UUID | None
+) -> list[Cliente]:
+    dueño = Cliente.empresa_id == empresa_id if empresa_id else Cliente.usuario_id == usuario_id
+    return list(
+        db.execute(
+            select(Cliente).where(dueño, Cliente.activo.is_(True)).order_by(Cliente.nombre)
+        ).scalars()
+    )
+
+
+def obtener_cliente(db: Session, cliente_id: uuid.UUID) -> Cliente | None:
+    return db.get(Cliente, cliente_id)
+
+
+def actualizar_cliente(db: Session, cliente: Cliente, cambios: dict[str, object]) -> Cliente:
+    for campo, valor in cambios.items():
+        setattr(cliente, campo, valor)
+    return guardar(db, cliente)
+
+
+def eliminar_cliente(db: Session, cliente: Cliente) -> None:
+    """Soft delete — activo=False, para no romper el snapshot de ParadaRuta
+    de rutas ya confirmadas que referencien este cliente."""
+    cliente.activo = False
+    guardar(db, cliente)

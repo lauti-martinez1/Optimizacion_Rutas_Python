@@ -10,6 +10,14 @@ export interface EmpresaPublica {
   fecha_creacion: string;
 }
 
+export interface VehiculoPublico {
+  id: string;
+  tipo_vehiculo: TipoVehiculo;
+  patente: string;
+  capacidad_carga_kg: number;
+  activo: boolean;
+}
+
 export interface UsuarioPublico {
   id: string;
   email: string;
@@ -17,9 +25,7 @@ export interface UsuarioPublico {
   rol: RolUsuario;
   empresa_id: string | null;
   telefono: string | null;
-  tipo_vehiculo: TipoVehiculo | null;
-  patente: string | null;
-  capacidad_carga_kg: number | null;
+  vehiculo: VehiculoPublico | null;
   plan: PlanSuscripcion;
   fecha_fin_prueba: string | null;
   fecha_creacion: string;

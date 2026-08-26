@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from api.routes import router as router_ruteo
 from api.routes_auth import router as router_auth
+from api.routes_clientes import router as router_clientes
 from core.config import settings
 
 app = FastAPI(
@@ -21,3 +22,4 @@ app.add_middleware(
 
 app.include_router(router_ruteo)
 app.include_router(router_auth)
+app.include_router(router_clientes)
