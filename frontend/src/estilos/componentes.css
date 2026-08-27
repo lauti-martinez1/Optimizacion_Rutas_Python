@@ -243,7 +243,7 @@
 
 .boton--exito:hover:not(:disabled) {
   filter: brightness(1.06);
-  box-shadow: 0 6px 16px rgba(18, 183, 106, 0.34);
+  box-shadow: 0 6px 16px rgba(var(--color-exito-rgb), 0.34);
 }
 
 .boton--peligro {
@@ -517,6 +517,42 @@
   padding: 24px 8px;
 }
 
+/* --- Estado vacío: Inicio sin ruta armada hoy --- */
+
+.estado-vacio-inicio {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 4px;
+  padding: 48px 20px 32px;
+}
+
+.estado-vacio-inicio__icono {
+  width: 48px;
+  height: 48px;
+  margin-bottom: 12px;
+}
+
+.estado-vacio-inicio__titulo {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-texto-fuerte);
+  margin: 0;
+}
+
+.estado-vacio-inicio__texto {
+  font-size: 13px;
+  color: var(--color-texto-mutado);
+  margin: 0 0 20px;
+  max-width: 280px;
+}
+
+.estado-vacio-inicio .boton {
+  width: auto;
+  padding: 0 28px;
+}
+
 .lista-lugares {
   list-style: none;
   margin: 0;
@@ -696,7 +732,7 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--color-primario);
+  background: var(--color-exito);
   flex-shrink: 0;
 }
 
@@ -768,17 +804,17 @@
 .marcador-parada--en_curso {
   width: 24px;
   height: 24px;
-  background: var(--color-primario);
+  background: var(--color-exito);
   border-width: 3px;
   animation: pulso-marcador 1.8s ease-in-out infinite;
 }
 
 @keyframes pulso-marcador {
   0%, 100% {
-    box-shadow: 0 0 0 0 rgba(var(--color-primario-rgb), 0.45), 0 1px 4px rgba(16, 24, 40, 0.4);
+    box-shadow: 0 0 0 0 rgba(var(--color-exito-rgb), 0.45), 0 1px 4px rgba(16, 24, 40, 0.4);
   }
   50% {
-    box-shadow: 0 0 0 9px rgba(var(--color-primario-rgb), 0), 0 1px 4px rgba(16, 24, 40, 0.4);
+    box-shadow: 0 0 0 9px rgba(var(--color-exito-rgb), 0), 0 1px 4px rgba(16, 24, 40, 0.4);
   }
 }
 

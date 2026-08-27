@@ -336,6 +336,10 @@ class Ruta(Base):
     # (matriz OSRM), tiempo en minutos, igual que routing/solver.py.
     distancia_total_m: Mapped[int | None] = mapped_column(Integer, nullable=True)
     tiempo_total_min: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Mismo texto que ya se mostraba en el preview (routing/planificador.py) —
+    # se persiste para que siga visible en "Ruta de hoy" después de confirmar,
+    # no solo durante el preview efímero previo a confirmar.
+    explicacion: Mapped[str | None] = mapped_column(Text, nullable=True)
     hora_inicio_real: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )

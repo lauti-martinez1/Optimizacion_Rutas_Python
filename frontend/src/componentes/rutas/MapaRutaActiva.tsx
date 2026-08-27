@@ -9,10 +9,11 @@ import type { DepositoResumen, ParadaRutaPublica } from "../../tipos/ruta";
 const CENTRO_MENDOZA: [number, number] = [-32.8908, -68.8272];
 
 // Marcadores dibujados en CSS (DivIcon), no imágenes — así el color sale de
-// los tokens del sistema y sigue el mismo código de estado que las tarjetas.
-// La próxima parada (en_curso) se dibuja más grande — comparte el violeta
-// del trazo, así que el tamaño (no el color) es lo que la distingue de un
-// vistazo sobre el mapa.
+// los tokens del sistema y sigue el mismo código de estado que las tarjetas
+// (mismo verde que el anillo de "en curso" en la lista y el chip de estado
+// de la Ruta). Una vez completada, la parada se saca del mapa por completo
+// (ver `paradas` más abajo) en vez de pintarla — así el mapa se va limpiando
+// a medida que avanza el día en lugar de acumular marcas.
 function iconoParada(estado: ParadaRutaPublica["estado"]) {
   const tamanio = estado === "en_curso" ? 28 : 20;
   return L.divIcon({
@@ -54,12 +55,30 @@ export function MapaRutaActiva({ deposito, paradas }: Props) {
       .catch(() => setPuntosCamino([]));
   }, []);
 
+  // Una parada completada se saca del mapa (pin y bounds) — ver el comentario
+  // sobre iconoParada más arriba.
+  const paradasVisibles = paradas.filter((parada) => parada.estado !== "completada");
+
   const puntosVisibles: [number, number][] = [
     [deposito.latitud, deposito.longitud],
-    ...paradas.map((parada): [number, number] => [parada.latitud_snapshot, parada.longitud_snapshot]),
+    ...paradasVisibles.map((parada): [number, number] => [
+      parada.latitud_snapshot,
+      parada.longitud_snapshot,
+    ]),
   ];
 
-  const proximaParada = paradas.find((parada) => parada.estado === "en_curso");
+  const indiceProxima = paradas.findIndex((parada) => parada.estado === "en_curso");
+  const proximaParada = indiceProxima === -1 ? undefined : paradas[indiceProxima];
+  // De dónde sale la navegación a la próxima parada: del depósito si es la
+  // primera del día, o de la parada anterior (ya completada) si no — nunca
+  // de la ubicación actual del dispositivo, que puede no ser confiable.
+  const origenNavegacion =
+    indiceProxima <= 0
+      ? { latitud: deposito.latitud, longitud: deposito.longitud }
+      : {
+          latitud: paradas[indiceProxima - 1].latitud_snapshot,
+          longitud: paradas[indiceProxima - 1].longitud_snapshot,
+        };
 
   return (
     <div className="mapa-ruta-activa">
@@ -75,7 +94,7 @@ export function MapaRutaActiva({ deposito, paradas }: Props) {
           />
         )}
         <Marker position={[deposito.latitud, deposito.longitud]} icon={iconoDeposito} />
-        {paradas.map((parada) => (
+        {paradasVisibles.map((parada) => (
           <Marker
             key={parada.id}
             position={[parada.latitud_snapshot, parada.longitud_snapshot]}
@@ -95,7 +114,7 @@ export function MapaRutaActiva({ deposito, paradas }: Props) {
           </div>
           <a
             className="mapa-ruta-activa__navegar"
-            href={`https://www.google.com/maps/dir/?api=1&destination=${proximaParada.latitud_snapshot},${proximaParada.longitud_snapshot}`}
+            href={`https://www.google.com/maps/dir/?api=1&origin=${origenNavegacion.latitud},${origenNavegacion.longitud}&destination=${proximaParada.latitud_snapshot},${proximaParada.longitud_snapshot}`}
             target="_blank"
             rel="noopener noreferrer"
           >

@@ -68,4 +68,5 @@ class RutaPublica(BaseModel):
     fecha_creacion: datetime
     deposito: DepositoResumen
     capacidad_vehiculo_kg: int
+    explicacion: str | None
     paradas: list[ParadaRutaPublica]

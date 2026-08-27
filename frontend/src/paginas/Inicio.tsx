@@ -76,7 +76,10 @@ export function Inicio() {
             onAbrioEdicionRuta={() => setAbrirEdicionRuta(false)}
           />
         ) : (
-          <PestanaInicio onEditar={irAEditarRuta} />
+          <PestanaInicio
+            onEditar={irAEditarRuta}
+            onArmarRuta={esChoferParticular ? () => setPestana("lugares") : undefined}
+          />
         )}
       </main>
     </div>

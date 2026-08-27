@@ -14,9 +14,12 @@ const ETIQUETA_ESTADO: Record<EstadoRuta, string> = {
 
 interface Props {
   onEditar: () => void;
+  /** undefined: este usuario no arma su propia ruta (chofer de empresa,
+   * admin) — no hay a dónde mandarlo, así que el estado vacío no ofrece CTA. */
+  onArmarRuta?: () => void;
 }
 
-export function PestanaInicio({ onEditar }: Props) {
+export function PestanaInicio({ onEditar, onArmarRuta }: Props) {
   const [ruta, setRuta] = useState<RutaPublica | null>(null);
   const [cargando, setCargando] = useState(true);
   const [enviando, setEnviando] = useState(false);
@@ -62,8 +65,28 @@ export function PestanaInicio({ onEditar }: Props) {
 
   if (!ruta) {
     return (
-      <div className="tarjeta-contenido">
-        <p>Todavía no tenés rutas asignadas.</p>
+      <div className="estado-vacio-inicio">
+        <svg
+          className="estado-vacio-inicio__icono"
+          viewBox="0 0 48 48"
+          fill="none"
+          aria-hidden="true"
+        >
+          <path
+            d="M8 34c6-10 10-14 16-14s10 4 16 14"
+            stroke="var(--color-borde-input)"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeDasharray="1 7"
+          />
+          <circle cx="8" cy="34" r="4" fill="var(--color-texto-fuerte)" />
+          <circle cx="40" cy="34" r="4" fill="var(--color-primario)" />
+        </svg>
+        <p className="estado-vacio-inicio__titulo">Todavía no armaste la ruta de hoy</p>
+        <p className="estado-vacio-inicio__texto">
+          Elegí los lugares que visitás y te armamos el mejor orden para recorrerlos.
+        </p>
+        {onArmarRuta && <Boton onClick={onArmarRuta}>Armar ruta de hoy</Boton>}
       </div>
     );
   }
@@ -86,6 +109,7 @@ export function PestanaInicio({ onEditar }: Props) {
           {ruta.paradas.length} paradas
           {ruta.distancia_total_m != null && ` · ${(ruta.distancia_total_m / 1000).toFixed(1)} km`}
         </p>
+        {ruta.explicacion && <p className="texto-ayuda">{ruta.explicacion}</p>}
         {(ruta.estado === "planificada" || ruta.estado === "en_curso") && (
           <div className="resumen-ruta__stats">
             <div className="resumen-ruta__stat">
@@ -166,6 +190,18 @@ export function PestanaInicio({ onEditar }: Props) {
             </Boton>
           </div>
         </>
+      )}
+
+      {ruta.estado === "en_curso" && (
+        <Boton
+          variante="peligro"
+          cargando={enviando}
+          onClick={() =>
+            ejecutar(() => eliminarRuta().then(() => undefined), "No se pudo cancelar la ruta.")
+          }
+        >
+          Cancelar ruta
+        </Boton>
       )}
 
       {ruta.estado === "completada" && (

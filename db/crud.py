@@ -306,6 +306,7 @@ def crear_ruta(
     deposito: Deposito,
     fecha: date,
     distancia_total_m: int,
+    explicacion: str,
     paradas: list[dict],
 ) -> Ruta:
     """`paradas`: lista de {"cliente": Cliente, "orden": int, "carga_kg": int},
@@ -321,6 +322,7 @@ def crear_ruta(
             tipo_problema=TipoProblema.CVRP,
             estado=EstadoRuta.PLANIFICADA,
             distancia_total_m=distancia_total_m,
+            explicacion=explicacion,
         ),
     )
     for item in paradas:

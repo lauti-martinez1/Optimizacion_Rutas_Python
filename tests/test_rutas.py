@@ -98,10 +98,13 @@ def test_confirmar_persiste_la_ruta(client, osrm_falso):
     cuerpo = respuesta.json()
     assert cuerpo["estado"] == "planificada"
     assert len(cuerpo["paradas"]) == 2
+    assert "capacidad" in cuerpo["explicacion"].lower()
 
     activa = client.get(f"{BASE_RUTAS}/activa")
     assert activa.status_code == 200
     assert activa.json()["id"] == cuerpo["id"]
+    # La explicación del preview se persiste, no solo se muestra una vez.
+    assert activa.json()["explicacion"] == cuerpo["explicacion"]
 
 
 def test_no_se_puede_confirmar_dos_rutas_el_mismo_dia(client, osrm_falso):

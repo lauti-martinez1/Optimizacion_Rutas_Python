@@ -57,5 +57,6 @@ export interface RutaPublica {
   fecha_creacion: string;
   deposito: DepositoResumen;
   capacidad_vehiculo_kg: number;
+  explicacion: string | null;
   paradas: ParadaRutaPublica[];
 }

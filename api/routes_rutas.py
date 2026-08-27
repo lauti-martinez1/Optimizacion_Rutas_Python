@@ -54,6 +54,7 @@ def _crear_ruta_desde_resultado(
         deposito=resultado.deposito,
         fecha=_hoy(),
         distancia_total_m=resultado.distancia_total_m,
+        explicacion=resultado.explicacion,
         paradas=[
             {"cliente": parada.cliente, "orden": parada.orden, "carga_kg": parada.carga_kg}
             for parada in resultado.paradas
