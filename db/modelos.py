@@ -353,6 +353,10 @@ class Ruta(Base):
     )
     incidencias: Mapped[list["Incidencia"]] = relationship(back_populates="ruta")
 
+    @property
+    def capacidad_vehiculo_kg(self) -> int:
+        return self.vehiculo.capacidad_carga_kg
+
 
 class ParadaRuta(Base):
     __tablename__ = "paradas_ruta"

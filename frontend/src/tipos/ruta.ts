@@ -56,5 +56,6 @@ export interface RutaPublica {
   distancia_total_m: number | null;
   fecha_creacion: string;
   deposito: DepositoResumen;
+  capacidad_vehiculo_kg: number;
   paradas: ParadaRutaPublica[];
 }

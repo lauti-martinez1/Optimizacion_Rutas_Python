@@ -10,12 +10,16 @@ const CENTRO_MENDOZA: [number, number] = [-32.8908, -68.8272];
 
 // Marcadores dibujados en CSS (DivIcon), no imágenes — así el color sale de
 // los tokens del sistema y sigue el mismo código de estado que las tarjetas.
+// La próxima parada (en_curso) se dibuja más grande — comparte el violeta
+// del trazo, así que el tamaño (no el color) es lo que la distingue de un
+// vistazo sobre el mapa.
 function iconoParada(estado: ParadaRutaPublica["estado"]) {
+  const tamanio = estado === "en_curso" ? 28 : 20;
   return L.divIcon({
     className: "",
     html: `<div class="marcador-parada marcador-parada--${estado}"></div>`,
-    iconSize: [20, 20],
-    iconAnchor: [10, 10],
+    iconSize: [tamanio, tamanio],
+    iconAnchor: [tamanio / 2, tamanio / 2],
   });
 }
 
@@ -55,6 +59,8 @@ export function MapaRutaActiva({ deposito, paradas }: Props) {
     ...paradas.map((parada): [number, number] => [parada.latitud_snapshot, parada.longitud_snapshot]),
   ];
 
+  const proximaParada = paradas.find((parada) => parada.estado === "en_curso");
+
   return (
     <div className="mapa-ruta-activa">
       <MapContainer center={CENTRO_MENDOZA} zoom={13} style={{ height: "260px" }}>
@@ -65,7 +71,7 @@ export function MapaRutaActiva({ deposito, paradas }: Props) {
         {puntosCamino.length > 0 && (
           <Polyline
             positions={puntosCamino}
-            pathOptions={{ color: "#2E5CFF", weight: 4, opacity: 0.75 }}
+            pathOptions={{ color: "#7C3AED", weight: 3, opacity: 0.55 }}
           />
         )}
         <Marker position={[deposito.latitud, deposito.longitud]} icon={iconoDeposito} />
@@ -78,6 +84,25 @@ export function MapaRutaActiva({ deposito, paradas }: Props) {
         ))}
         <AjustarVista puntos={puntosVisibles} />
       </MapContainer>
+      {proximaParada && (
+        <div className="mapa-ruta-activa__proxima">
+          <span className="mapa-ruta-activa__punto" />
+          <div className="mapa-ruta-activa__proxima-info">
+            <p className="mapa-ruta-activa__proxima-nombre">{proximaParada.nombre_snapshot}</p>
+            <p className="mapa-ruta-activa__proxima-direccion">
+              {proximaParada.direccion_snapshot}
+            </p>
+          </div>
+          <a
+            className="mapa-ruta-activa__navegar"
+            href={`https://www.google.com/maps/dir/?api=1&destination=${proximaParada.latitud_snapshot},${proximaParada.longitud_snapshot}`}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Ir con Maps
+          </a>
+        </div>
+      )}
     </div>
   );
 }

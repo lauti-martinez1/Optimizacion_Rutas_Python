@@ -1,7 +1,9 @@
-/* Tokens extraídos de "Active Route View.dc.html" (Claude Design).
-   No confundir con los tokens del design system "Trazo" del mismo proyecto —
-   ese es de otra app (tema oscuro, terminología de levantamiento olímpico)
-   y no tiene relación con esta app de delivery. */
+/* Tokens extraídos de "Active Route View.dc.html" (Claude Design). El mockup
+   trae azul #2E5CFF por defecto, con violeta #7C3AED como una de las 3
+   opciones de su selector de color — esta app usa esa opción violeta como
+   identidad. No confundir con los tokens del design system "Trazo" del mismo
+   proyecto — ese es de otra app (tema oscuro, terminología de levantamiento
+   olímpico) y no tiene relación con esta app de delivery. */
 
 :root {
   /* --- Color: fondo/superficie --- */
@@ -10,8 +12,9 @@
   --color-blanco: #FFFFFF;
 
   /* --- Color: marca --- */
-  --color-primario: #2E5CFF;
-  --color-primario-hover: #1A44E0;
+  --color-primario: #7C3AED;
+  --color-primario-rgb: 124, 58, 237;
+  --color-primario-hover: #6D28D9;
   --color-exito: #12B76A;
   --color-exito-tint: #ECFDF3;
   --color-peligro: #F04438;
@@ -42,6 +45,6 @@
   /* --- Sombras --- */
   --sombra-sm: 0 1px 2px rgba(16, 24, 40, 0.04);
   --sombra-md: 0 2px 6px rgba(16, 24, 40, 0.08);
-  --sombra-boton-primario: 0 4px 10px rgba(46, 92, 255, 0.24);
+  --sombra-boton-primario: 0 4px 10px rgba(var(--color-primario-rgb), 0.24);
   --sombra-boton-exito: 0 4px 10px rgba(18, 183, 106, 0.28);
 }

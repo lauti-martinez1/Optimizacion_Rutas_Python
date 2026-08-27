@@ -1,5 +1,5 @@
 import { fetchApi } from "./cliente";
-import type { DatosDepositoCrear, DepositoPublico } from "../tipos/deposito";
+import type { DatosDepositoActualizar, DatosDepositoCrear, DepositoPublico } from "../tipos/deposito";
 
 const BASE = "/api/v1/depositos";
 
@@ -9,4 +9,11 @@ export function crearDeposito(datos: DatosDepositoCrear) {
 
 export function listarDepositos() {
   return fetchApi<DepositoPublico[]>(BASE);
+}
+
+export function actualizarDeposito(id: string, datos: DatosDepositoActualizar) {
+  return fetchApi<DepositoPublico>(`${BASE}/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(datos),
+  });
 }

@@ -4,6 +4,16 @@ const BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
  * del backend (detail de una respuesta no-2xx) o de una validación de cliente. */
 export class ErrorFormulario extends Error {}
 
+/** useAuthStore se registra acá al inicializarse para limpiar la sesión ante
+ * un 401 de cualquier pedido — evita un import circular (fetchApi -> store ->
+ * api/auth -> fetchApi) y hace visible una sesión vencida/perdida en vez de
+ * fallar en silencio pedido por pedido (ej. el autocompletado de geocoding,
+ * que traga sus propios errores). */
+let manejarSesionExpirada: (() => void) | null = null;
+export function registrarManejadorSesionExpirada(fn: () => void) {
+  manejarSesionExpirada = fn;
+}
+
 export async function fetchApi<T>(path: string, opciones: RequestInit = {}): Promise<T> {
   const respuesta = await fetch(`${BASE_URL}${path}`, {
     credentials: "include",
@@ -12,6 +22,9 @@ export async function fetchApi<T>(path: string, opciones: RequestInit = {}): Pro
   });
 
   if (!respuesta.ok) {
+    if (respuesta.status === 401) {
+      manejarSesionExpirada?.();
+    }
     const cuerpo = await respuesta.json().catch(() => null);
     throw new ErrorFormulario(cuerpo?.detail ?? "Error de red inesperado.");
   }

@@ -16,3 +16,5 @@ export interface DatosDepositoCrear {
   ventana_inicio?: number | null;
   ventana_fin?: number | null;
 }
+
+export type DatosDepositoActualizar = Partial<DatosDepositoCrear>;

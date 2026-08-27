@@ -1,6 +1,7 @@
 import { create } from "zustand";
 
 import { cerrarSesion as apiCerrarSesion, iniciarSesion as apiIniciarSesion, obtenerUsuarioActual } from "../api/auth";
+import { registrarManejadorSesionExpirada } from "../api/cliente";
 import type { UsuarioPublico } from "../tipos/auth";
 
 interface EstadoAuth {
@@ -41,3 +42,7 @@ export const useAuthStore = create<EstadoAuth>((set) => ({
 
   establecerUsuario: (usuario) => set({ usuario, estaAutenticado: true }),
 }));
+
+// Cualquier 401 (sesión vencida o cookie perdida) limpia el store acá mismo
+// — RutaProtegida ya redirige solo a /login apenas estaAutenticado es false.
+registrarManejadorSesionExpirada(() => useAuthStore.setState({ usuario: null, estaAutenticado: false }));

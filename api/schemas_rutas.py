@@ -67,4 +67,5 @@ class RutaPublica(BaseModel):
     distancia_total_m: int | None
     fecha_creacion: datetime
     deposito: DepositoResumen
+    capacidad_vehiculo_kg: int
     paradas: list[ParadaRutaPublica]

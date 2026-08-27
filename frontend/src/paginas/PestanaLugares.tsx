@@ -1,13 +1,16 @@
 import { useEffect, useState } from "react";
 
 import { eliminarCliente, listarClientes } from "../api/clientes";
+import { listarDepositos } from "../api/depositos";
 import { obtenerRutaActiva } from "../api/rutas";
 import { FormularioCliente } from "../componentes/formularios/FormularioCliente";
+import { FormularioDeposito } from "../componentes/formularios/FormularioDeposito";
 import { FlujoArmarRuta } from "../componentes/rutas/FlujoArmarRuta";
 import { Boton } from "../componentes/ui/Boton";
 import type { ClientePublico } from "../tipos/cliente";
+import type { DepositoPublico } from "../tipos/deposito";
 
-type Vista = "lista" | "formulario" | "ruta";
+type Vista = "lista" | "formulario" | "ruta" | "deposito";
 
 interface Props {
   onRutaConfirmada: () => void;
@@ -22,6 +25,7 @@ export function PestanaLugares({
   onAbrioEdicionRuta,
 }: Props) {
   const [clientes, setClientes] = useState<ClientePublico[]>([]);
+  const [deposito, setDeposito] = useState<DepositoPublico | null>(null);
   const [tieneRutaHoy, setTieneRutaHoy] = useState(false);
   const [cargando, setCargando] = useState(true);
   const [vista, setVista] = useState<Vista>("lista");
@@ -29,8 +33,13 @@ export function PestanaLugares({
   const [clienteEditando, setClienteEditando] = useState<ClientePublico | null>(null);
 
   async function recargar() {
-    const [listaClientes, ruta] = await Promise.all([listarClientes(), obtenerRutaActiva()]);
+    const [listaClientes, listaDepositos, ruta] = await Promise.all([
+      listarClientes(),
+      listarDepositos(),
+      obtenerRutaActiva(),
+    ]);
     setClientes(listaClientes);
+    setDeposito(listaDepositos[0] ?? null);
     setTieneRutaHoy(ruta !== null);
   }
 
@@ -67,7 +76,16 @@ export function PestanaLugares({
     setVista("ruta");
   }
 
+  function abrirDeposito() {
+    setVista("deposito");
+  }
+
   async function manejarGuardadoLugar() {
+    setVista("lista");
+    await recargar();
+  }
+
+  async function manejarGuardadoDeposito() {
     setVista("lista");
     await recargar();
   }
@@ -104,8 +122,34 @@ export function PestanaLugares({
     );
   }
 
+  if (vista === "deposito") {
+    return (
+      <FormularioDeposito
+        deposito={deposito}
+        onGuardado={manejarGuardadoDeposito}
+        onCancelar={() => setVista("lista")}
+      />
+    );
+  }
+
   return (
     <div className="pestana-lugares">
+      {!cargando && (
+        <div className="tarjeta-contenido">
+          <div className="tarjeta-contenido__cabecera">
+            <p className="tarjeta-contenido__titulo">Mi depósito</p>
+            <button className="enlace-volver" onClick={abrirDeposito}>
+              {deposito ? "Editar" : "+ Agregar"}
+            </button>
+          </div>
+          <p className="texto-ayuda">
+            {deposito
+              ? `${deposito.nombre} — de acá parten y a acá vuelven tus rutas.`
+              : "Todavía no marcaste de dónde salís y a dónde volvés cada día."}
+          </p>
+        </div>
+      )}
+
       <div className="fila-botones">
         <Boton variante="secundario" onClick={abrirNuevo}>
           + Agregar lugar

@@ -69,6 +69,10 @@ export function PestanaInicio({ onEditar }: Props) {
     );
   }
 
+  const paradasCompletadas = ruta.paradas.filter((parada) => parada.estado === "completada").length;
+  const cargaTotalKg = ruta.paradas.reduce((suma, parada) => suma + parada.demanda_carga_snapshot, 0);
+  const cargaUsadaPct = Math.min(100, Math.round((cargaTotalKg / ruta.capacidad_vehiculo_kg) * 100));
+
   return (
     <div className="pestana-lugares">
       <div className="tarjeta-contenido">
@@ -83,6 +87,21 @@ export function PestanaInicio({ onEditar }: Props) {
           {ruta.paradas.length} paradas
           {ruta.distancia_total_m != null && ` · ${(ruta.distancia_total_m / 1000).toFixed(1)} km`}
         </p>
+        {(ruta.estado === "planificada" || ruta.estado === "en_curso") && (
+          <div className="resumen-ruta__stats">
+            <div className="resumen-ruta__stat">
+              <span className="resumen-ruta__valor">
+                {paradasCompletadas}
+                <span className="resumen-ruta__valor-total">/{ruta.paradas.length}</span>
+              </span>
+              <span className="resumen-ruta__etiqueta">entregas completadas</span>
+            </div>
+            <div className="resumen-ruta__stat">
+              <span className="resumen-ruta__valor">{cargaUsadaPct}%</span>
+              <span className="resumen-ruta__etiqueta">carga del vehículo</span>
+            </div>
+          </div>
+        )}
       </div>
 
       {error && <div className="error-formulario">{error}</div>}
@@ -101,10 +120,9 @@ export function PestanaInicio({ onEditar }: Props) {
               (parada.estado === "completada" ? " tarjeta-lugar--completada" : "")
             }
           >
+            <span className="tarjeta-lugar__numero">{parada.orden + 1}</span>
             <div className="tarjeta-lugar__info">
-              <p className="tarjeta-lugar__nombre">
-                {parada.orden + 1}. {parada.nombre_snapshot}
-              </p>
+              <p className="tarjeta-lugar__nombre">{parada.nombre_snapshot}</p>
               <p className="tarjeta-lugar__direccion">{parada.direccion_snapshot}</p>
             </div>
             {parada.estado === "en_curso" ? (

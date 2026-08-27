@@ -41,7 +41,7 @@ Sin nombre de marca ni logo definidos todavía — el proyecto se identifica por
 
 ## Evidence on Hand
 
-- Mockup de referencia diseñado en Claude Design (`Active Route View.dc.html`, no versionado en este repo): pantallas mobile de la operación del chofer (ruta activa, detalle de parada, confirmación de entrega, flota, incidencias, resumen de cierre). Paleta usada ahí y ya extraída a `frontend/src/estilos/tokens.css`: azul primario `#2E5CFF`, verde éxito `#12B76A`, fondo `#E9EAEC`/`#F5F6F8`, tipografía Inter (texto) + JetBrains Mono (datos numéricos).
+- Mockup de referencia diseñado en Claude Design (`Active Route View.dc.html`, no versionado en este repo): pantallas mobile de la operación del chofer (ruta activa, detalle de parada, confirmación de entrega, flota, incidencias, resumen de cierre). El mockup trae azul `#2E5CFF` como color por defecto, con un selector de 3 opciones (`#2E5CFF`/`#7C3AED`/`#0F766E`) — este producto adoptó la opción violeta como identidad, ya extraída a `frontend/src/estilos/tokens.css`: violeta primario `#7C3AED`, verde éxito `#12B76A` (constante en las 3 opciones del mockup), fondo `#E9EAEC`/`#F5F6F8`, tipografía Inter (texto) + JetBrains Mono (datos numéricos).
 - El mismo proyecto de Claude Design contiene un design system separado ("Trazo", tema oscuro/verde lima, terminología de levantamiento olímpico) que **no tiene relación con este producto** — evidencia a ignorar, no a heredar.
 - Sin fotografía, ilustración ni assets de marca propios todavía.
 
