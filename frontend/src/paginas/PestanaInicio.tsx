@@ -36,17 +36,16 @@ export function PestanaInicio({ onEditar }: Props) {
   /** Iniciar/completar devuelven la Ruta actualizada — la usamos tal cual en
    * vez de recargar vía GET /activa, que ya no encuentra una ruta recién
    * completada (esa deja de contar como "activa") y pisaría el resumen
-   * final con el estado vacío antes de que el chofer llegue a verlo. */
-  async function ejecutar(
-    accion: () => Promise<RutaPublica | unknown>,
-    mensajeError: string,
-  ) {
+   * final con el estado vacío antes de que el chofer llegue a verlo.
+   * Eliminar no devuelve una Ruta (queda cancelada, deja de ser "activa"),
+   * así que su acción se pasa sin valor de retorno y siempre recarga. */
+  async function ejecutar(accion: () => Promise<RutaPublica | void>, mensajeError: string) {
     setError(null);
     setEnviando(true);
     try {
       const resultado = await accion();
-      if (resultado && typeof resultado === "object" && "estado" in resultado) {
-        setRuta(resultado as RutaPublica);
+      if (resultado) {
+        setRuta(resultado);
       } else {
         await recargar();
       }
@@ -159,7 +158,9 @@ export function PestanaInicio({ onEditar }: Props) {
             <Boton
               variante="peligro"
               cargando={enviando}
-              onClick={() => ejecutar(() => eliminarRuta(), "No se pudo eliminar la ruta.")}
+              onClick={() =>
+                ejecutar(() => eliminarRuta().then(() => undefined), "No se pudo eliminar la ruta.")
+              }
             >
               Eliminar
             </Boton>
