@@ -2,6 +2,12 @@ import type { ReactNode } from "react";
 
 import { OverlayRuta } from "./OverlayRuta";
 
+/** Clase del <Link> dentro del slot `pie` — Login.tsx y Registro.tsx arman
+ * ese link ellos mismos (es texto + Link, no un componente propio), pero
+ * comparten el mismo estilo porque es el mismo pie de la misma pantalla. */
+export const claseEnlacePie =
+  "font-semibold text-blanco underline decoration-white/50 underline-offset-2 hover:decoration-white";
+
 interface Props {
   /** Slot antes del título — Registro.tsx lo usa para el link "‹ Elegir otro
    * tipo de cuenta" cuando ya hay un tipo de cuenta elegido. */

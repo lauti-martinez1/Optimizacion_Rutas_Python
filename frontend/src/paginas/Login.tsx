@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 
 import { FormularioLogin } from "../componentes/formularios/FormularioLogin";
-import { PaginaAuth } from "../componentes/ui/PaginaAuth";
+import { PaginaAuth, claseEnlacePie } from "../componentes/ui/PaginaAuth";
 
 export function Login() {
   return (
@@ -11,10 +11,7 @@ export function Login() {
       pie={
         <>
           ¿No tenés cuenta?{" "}
-          <Link
-            to="/registro"
-            className="font-semibold text-blanco underline decoration-white/50 underline-offset-2 hover:decoration-white"
-          >
+          <Link to="/registro" className={claseEnlacePie}>
             Registrate
           </Link>
         </>

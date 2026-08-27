@@ -7,8 +7,11 @@ import type { ClientePublico } from "../../tipos/cliente";
 import type { RutaPreview } from "../../tipos/ruta";
 import { FormularioDeposito } from "../formularios/FormularioDeposito";
 import { Boton } from "../ui/Boton";
+import { DatoNumerico } from "../ui/DatoNumerico";
+import { BannerError } from "../ui/Formulario";
 import { TarjetaContenido } from "../ui/TarjetaContenido";
 import { TarjetaLugar } from "../ui/TarjetaLugar";
+import { TextoVacio } from "../ui/TextoVacio";
 
 interface Props {
   clientes: ClientePublico[];
@@ -25,8 +28,6 @@ type Vista = "cargando" | "deposito" | "seleccion" | "preview";
 // presencia en este objeto ES la selección (agregar/sacar una clave marca o
 // desmarca el checkbox), evita duplicar el estado en dos lugares distintos.
 type Seleccion = Record<string, number>;
-
-const DATO_NUMERICO = "font-mono text-[12.5px] font-medium text-texto-cuerpo whitespace-nowrap shrink-0";
 
 export function FlujoArmarRuta({ clientes, modoEdicion = false, onConfirmada, onCancelar }: Props) {
   const [vista, setVista] = useState<Vista>("cargando");
@@ -90,7 +91,7 @@ export function FlujoArmarRuta({ clientes, modoEdicion = false, onConfirmada, on
   }
 
   if (vista === "cargando") {
-    return <p className="px-2 py-6 text-center text-[13px] text-texto-mutado">Cargando…</p>;
+    return <TextoVacio>Cargando…</TextoVacio>;
   }
 
   if (vista === "deposito") {
@@ -113,11 +114,7 @@ export function FlujoArmarRuta({ clientes, modoEdicion = false, onConfirmada, on
             </p>
           )}
         </TarjetaContenido>
-        {error && (
-          <div className="rounded-md border border-peligro-borde bg-peligro-tint px-3 py-2.5 text-[12.5px] text-peligro">
-            {error}
-          </div>
-        )}
+        {error && <BannerError>{error}</BannerError>}
         <ol className="flex flex-col gap-2.5">
           {preview.paradas.map((parada) => (
             <li
@@ -130,7 +127,7 @@ export function FlujoArmarRuta({ clientes, modoEdicion = false, onConfirmada, on
                 </p>
                 <p className="text-[12.5px] text-texto-cuerpo">{parada.direccion}</p>
               </div>
-              <span className={DATO_NUMERICO}>{(parada.distancia_acumulada_m / 1000).toFixed(1)} km</span>
+              <DatoNumerico>{(parada.distancia_acumulada_m / 1000).toFixed(1)} km</DatoNumerico>
             </li>
           ))}
         </ol>
@@ -151,11 +148,7 @@ export function FlujoArmarRuta({ clientes, modoEdicion = false, onConfirmada, on
       <p className="text-[12.5px] text-texto-mutado">
         Elegí los lugares que visitás hoy y cuánto llevás a cada uno.
       </p>
-      {error && (
-        <div className="rounded-md border border-peligro-borde bg-peligro-tint px-3 py-2.5 text-[12.5px] text-peligro">
-          {error}
-        </div>
-      )}
+      {error && <BannerError>{error}</BannerError>}
       <ul className="flex flex-col gap-2.5 xl:grid xl:grid-cols-2 xl:gap-3">
         {clientes.map((cliente) => {
           const marcado = cliente.id in seleccion;

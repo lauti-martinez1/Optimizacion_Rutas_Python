@@ -30,6 +30,15 @@ function claseTabEscritorio(activa: boolean) {
   );
 }
 
+function Saludo({ nombre, subtitulo }: { nombre: string | undefined; subtitulo: string }) {
+  return (
+    <div>
+      <h1 className="mb-0.5 text-lg font-bold text-texto-fuerte">Hola, {nombre}</h1>
+      <p className="text-[12.5px] text-texto-mutado">{subtitulo}</p>
+    </div>
+  );
+}
+
 export function Inicio() {
   const navigate = useNavigate();
   const usuario = useAuthStore((estado) => estado.usuario);
@@ -68,10 +77,7 @@ export function Inicio() {
       {/* --- Sidebar de escritorio: reemplaza el header + pestañas de mobile,
           no es una versión "estirada" de lo mismo. --- */}
       <aside className="hidden lg:flex lg:w-60 lg:shrink-0 lg:flex-col lg:border-r lg:border-borde lg:bg-superficie lg:p-5">
-        <h1 className="mb-0.5 text-lg font-bold text-texto-fuerte">
-          Hola, {usuario?.nombre_completo}
-        </h1>
-        <p className="text-[12.5px] text-texto-mutado">{subtitulo}</p>
+        <Saludo nombre={usuario?.nombre_completo} subtitulo={subtitulo} />
 
         {esChoferParticular && (
           <nav className="mt-6 flex flex-1 flex-col gap-1">
@@ -102,12 +108,7 @@ export function Inicio() {
 
       <div className="flex flex-1 flex-col">
         <header className="flex items-center justify-between gap-3 border-b border-borde bg-superficie px-5 py-5 lg:hidden">
-          <div>
-            <h1 className="mb-0.5 text-lg font-bold text-texto-fuerte">
-              Hola, {usuario?.nombre_completo}
-            </h1>
-            <p className="text-[12.5px] text-texto-mutado">{subtitulo}</p>
-          </div>
+          <Saludo nombre={usuario?.nombre_completo} subtitulo={subtitulo} />
           <button
             type="button"
             className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full bg-primario font-mono text-sm font-bold text-blanco"

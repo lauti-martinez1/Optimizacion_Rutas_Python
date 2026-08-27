@@ -3,9 +3,12 @@ import { useEffect, useState } from "react";
 import { completarParada, eliminarRuta, iniciarRuta, obtenerRutaActiva } from "../api/rutas";
 import { MapaRutaActiva } from "../componentes/rutas/MapaRutaActiva";
 import { Boton } from "../componentes/ui/Boton";
+import { BannerError } from "../componentes/ui/Formulario";
+import { DatoNumerico } from "../componentes/ui/DatoNumerico";
 import { CabeceraTarjeta, TarjetaContenido, TituloTarjeta } from "../componentes/ui/TarjetaContenido";
 import { TarjetaLugar } from "../componentes/ui/TarjetaLugar";
 import { TextoEyebrow } from "../componentes/ui/TextoEyebrow";
+import { TextoVacio } from "../componentes/ui/TextoVacio";
 import { combinarClases } from "../componentes/ui/combinarClases";
 import type { EstadoRuta, RutaPublica } from "../tipos/ruta";
 
@@ -22,8 +25,6 @@ const CHIP_ESTADO: Record<EstadoRuta, string> = {
   completada: "bg-exito-tint text-exito",
   cancelada: "bg-peligro-tint text-peligro",
 };
-
-const DATO_NUMERICO = "font-mono text-[12.5px] font-medium text-texto-cuerpo whitespace-nowrap shrink-0";
 
 interface Props {
   onEditar: () => void;
@@ -73,7 +74,7 @@ export function PestanaInicio({ onEditar, onArmarRuta }: Props) {
   }
 
   if (cargando) {
-    return <p className="px-2 py-6 text-center text-[13px] text-texto-mutado">Cargando…</p>;
+    return <TextoVacio>Cargando…</TextoVacio>;
   }
 
   if (!ruta) {
@@ -128,10 +129,10 @@ export function PestanaInicio({ onEditar, onArmarRuta }: Props) {
             {ETIQUETA_ESTADO[ruta.estado]}
           </span>
         </CabeceraTarjeta>
-        <p className={DATO_NUMERICO}>
+        <DatoNumerico as="p">
           {ruta.paradas.length} paradas
           {ruta.distancia_total_m != null && ` · ${(ruta.distancia_total_m / 1000).toFixed(1)} km`}
-        </p>
+        </DatoNumerico>
         {ruta.explicacion && <p className="text-[12.5px] text-texto-mutado">{ruta.explicacion}</p>}
         {(ruta.estado === "planificada" || ruta.estado === "en_curso") && (
           <>
@@ -153,11 +154,7 @@ export function PestanaInicio({ onEditar, onArmarRuta }: Props) {
         )}
       </TarjetaContenido>
 
-      {error && (
-        <div className="rounded-md border border-peligro-borde bg-peligro-tint px-3 py-2.5 text-[12.5px] text-peligro">
-          {error}
-        </div>
-      )}
+      {error && <BannerError>{error}</BannerError>}
 
       <div className={conMapa ? "xl:grid xl:grid-cols-[1fr_380px] xl:items-start xl:gap-5" : undefined}>
         {conMapa && <MapaRutaActiva deposito={ruta.deposito} paradas={ruta.paradas} />}
@@ -169,7 +166,7 @@ export function PestanaInicio({ onEditar, onArmarRuta }: Props) {
               numero={parada.orden + 1}
               nombre={parada.nombre_snapshot}
               direccion={parada.direccion_snapshot}
-              estado={parada.estado === "en_curso" || parada.estado === "completada" ? parada.estado : undefined}
+              estado={parada.estado}
               trailing={
                 parada.estado === "en_curso" ? (
                   <Boton
@@ -183,7 +180,7 @@ export function PestanaInicio({ onEditar, onArmarRuta }: Props) {
                     Marcar visitada
                   </Boton>
                 ) : (
-                  <span className={DATO_NUMERICO}>{parada.demanda_carga_snapshot} kg</span>
+                  <DatoNumerico>{parada.demanda_carga_snapshot} kg</DatoNumerico>
                 )
               }
             />

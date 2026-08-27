@@ -4,7 +4,8 @@ import { Link } from "react-router-dom";
 import { FormularioRegistroChofer } from "../componentes/formularios/FormularioRegistroChofer";
 import { FormularioRegistroChoferInvitado } from "../componentes/formularios/FormularioRegistroChoferInvitado";
 import { FormularioRegistroEmpresa } from "../componentes/formularios/FormularioRegistroEmpresa";
-import { PaginaAuth } from "../componentes/ui/PaginaAuth";
+import { Enlace } from "../componentes/ui/Enlace";
+import { PaginaAuth, claseEnlacePie } from "../componentes/ui/PaginaAuth";
 
 type TipoCuenta = "chofer_independiente" | "empresa" | "chofer_invitado";
 
@@ -32,10 +33,7 @@ export function Registro() {
   const pie = (
     <>
       ¿Ya tenés cuenta?{" "}
-      <Link
-        to="/login"
-        className="font-semibold text-blanco underline decoration-white/50 underline-offset-2 hover:decoration-white"
-      >
+      <Link to="/login" className={claseEnlacePie}>
         Iniciá sesión
       </Link>
     </>
@@ -64,13 +62,9 @@ export function Registro() {
   return (
     <PaginaAuth
       antes={
-        <button
-          type="button"
-          className="mb-4 inline-block cursor-pointer border-none bg-transparent p-0 text-[12.5px] text-texto-mutado hover:text-texto-cuerpo"
-          onClick={() => setTipoSeleccionado(null)}
-        >
+        <Enlace className="mb-4 inline-block" onClick={() => setTipoSeleccionado(null)}>
           ‹ Elegir otro tipo de cuenta
-        </button>
+        </Enlace>
       }
       titulo={OPCIONES.find((o) => o.tipo === tipoSeleccionado)?.titulo ?? ""}
       subtitulo="Completá tus datos para crear la cuenta."

@@ -7,15 +7,14 @@ import { FormularioCliente } from "../componentes/formularios/FormularioCliente"
 import { FormularioDeposito } from "../componentes/formularios/FormularioDeposito";
 import { FlujoArmarRuta } from "../componentes/rutas/FlujoArmarRuta";
 import { Boton } from "../componentes/ui/Boton";
+import { Enlace } from "../componentes/ui/Enlace";
 import { CabeceraTarjeta, TarjetaContenido, TituloTarjeta } from "../componentes/ui/TarjetaContenido";
 import { TarjetaLugar } from "../componentes/ui/TarjetaLugar";
+import { TextoVacio } from "../componentes/ui/TextoVacio";
 import type { ClientePublico } from "../tipos/cliente";
 import type { DepositoPublico } from "../tipos/deposito";
 
 type Vista = "lista" | "formulario" | "ruta" | "deposito";
-
-const ENLACE = "cursor-pointer border-none bg-transparent p-0 text-[12.5px] text-texto-mutado hover:text-texto-cuerpo";
-const ENLACE_PELIGRO = "cursor-pointer border-none bg-transparent p-0 text-[12.5px] text-peligro hover:brightness-[0.85]";
 
 interface Props {
   onRutaConfirmada: () => void;
@@ -143,9 +142,7 @@ export function PestanaLugares({
         <TarjetaContenido>
           <CabeceraTarjeta>
             <TituloTarjeta>Mi depósito</TituloTarjeta>
-            <button className={ENLACE} onClick={abrirDeposito}>
-              {deposito ? "Editar" : "+ Agregar"}
-            </button>
+            <Enlace onClick={abrirDeposito}>{deposito ? "Editar" : "+ Agregar"}</Enlace>
           </CabeceraTarjeta>
           <p className="text-[12.5px] text-texto-mutado">
             {deposito
@@ -169,12 +166,12 @@ export function PestanaLugares({
       </div>
 
       {cargando ? (
-        <p className="px-2 py-6 text-center text-[13px] text-texto-mutado">Cargando…</p>
+        <TextoVacio>Cargando…</TextoVacio>
       ) : clientes.length === 0 ? (
-        <p className="px-2 py-6 text-center text-[13px] text-texto-mutado">
+        <TextoVacio>
           Todavía no guardaste ningún lugar. Agregá las direcciones que visitás seguido para no
           tener que cargarlas cada vez.
-        </p>
+        </TextoVacio>
       ) : (
         <ul className="flex flex-col gap-2.5 xl:grid xl:grid-cols-2 xl:gap-3">
           {clientes.map((cliente) => (
@@ -185,12 +182,10 @@ export function PestanaLugares({
               telefono={cliente.telefono}
               trailing={
                 <div className="flex shrink-0 flex-col items-end gap-1.5">
-                  <button className={ENLACE} onClick={() => abrirEdicionLugar(cliente)}>
-                    Editar
-                  </button>
-                  <button className={ENLACE_PELIGRO} onClick={() => manejarEliminarLugar(cliente.id)}>
+                  <Enlace onClick={() => abrirEdicionLugar(cliente)}>Editar</Enlace>
+                  <Enlace peligro onClick={() => manejarEliminarLugar(cliente.id)}>
                     Eliminar
-                  </button>
+                  </Enlace>
                 </div>
               }
             />

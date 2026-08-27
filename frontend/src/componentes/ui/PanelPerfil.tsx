@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 import { OPCIONES_TIPO_VEHICULO } from "../formularios/opcionesVehiculo";
 import { useAuthStore } from "../../store/useAuthStore";
 import { Boton } from "./Boton";
@@ -21,6 +23,15 @@ function Dato({ etiqueta, valor }: { etiqueta: string; valor: string }) {
       <span className="text-right font-mono text-[12.5px] break-words text-texto-fuerte">
         {valor}
       </span>
+    </div>
+  );
+}
+
+function Seccion({ titulo, children }: { titulo: string; children: ReactNode }) {
+  return (
+    <div className="my-5 flex flex-col gap-2.5 border-t border-borde pt-4">
+      <TextoEyebrow className="mt-0">{titulo}</TextoEyebrow>
+      {children}
     </div>
   );
 }
@@ -62,19 +73,17 @@ export function PanelPerfil({ abierto, onCerrar, onCerrarSesion }: Props) {
           {usuario.empresa_id ? " · con empresa vinculada" : " · independiente"}
         </p>
 
-        <div className="my-5 flex flex-col gap-2.5 border-t border-borde pt-4">
-          <TextoEyebrow className="mt-0">Contacto</TextoEyebrow>
+        <Seccion titulo="Contacto">
           <Dato etiqueta="Email" valor={usuario.email} />
           <Dato etiqueta="Teléfono" valor={usuario.telefono ?? "—"} />
-        </div>
+        </Seccion>
 
         {usuario.vehiculo && (
-          <div className="my-5 flex flex-col gap-2.5 border-t border-borde pt-4">
-            <TextoEyebrow className="mt-0">Mi vehículo</TextoEyebrow>
+          <Seccion titulo="Mi vehículo">
             <Dato etiqueta="Tipo" valor={etiquetaVehiculo ?? ""} />
             <Dato etiqueta="Patente" valor={usuario.vehiculo.patente} />
             <Dato etiqueta="Capacidad" valor={`${usuario.vehiculo.capacidad_carga_kg} kg`} />
-          </div>
+          </Seccion>
         )}
 
         <Boton variante="secundario" className="mt-auto" onClick={onCerrarSesion}>
