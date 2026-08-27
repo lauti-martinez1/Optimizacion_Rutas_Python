@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { completarParada, eliminarRuta, iniciarRuta, obtenerRutaActiva } from "../api/rutas";
 import { MapaRutaActiva } from "../componentes/rutas/MapaRutaActiva";
 import { Boton } from "../componentes/ui/Boton";
+import { ChipEstadoRuta } from "../componentes/ui/ChipEstado";
 import { BannerError } from "../componentes/ui/Formulario";
 import { DatoNumerico } from "../componentes/ui/DatoNumerico";
 import { CabeceraTarjeta, TarjetaContenido, TituloTarjeta } from "../componentes/ui/TarjetaContenido";
@@ -10,21 +11,7 @@ import { TarjetaLugar } from "../componentes/ui/TarjetaLugar";
 import { TextoEyebrow } from "../componentes/ui/TextoEyebrow";
 import { TextoVacio } from "../componentes/ui/TextoVacio";
 import { combinarClases } from "../componentes/ui/combinarClases";
-import type { EstadoRuta, RutaPublica } from "../tipos/ruta";
-
-const ETIQUETA_ESTADO: Record<EstadoRuta, string> = {
-  planificada: "Planificada",
-  en_curso: "En curso",
-  completada: "Completada",
-  cancelada: "Cancelada",
-};
-
-const CHIP_ESTADO: Record<EstadoRuta, string> = {
-  planificada: "bg-primario/10 text-primario",
-  en_curso: "bg-exito-tint text-exito",
-  completada: "bg-exito-tint text-exito",
-  cancelada: "bg-peligro-tint text-peligro",
-};
+import type { RutaPublica } from "../tipos/ruta";
 
 interface Props {
   onEditar: () => void;
@@ -114,20 +101,7 @@ export function PestanaInicio({ onEditar, onArmarRuta }: Props) {
       <TarjetaContenido>
         <CabeceraTarjeta>
           <TituloTarjeta>Ruta de hoy</TituloTarjeta>
-          <span
-            className={combinarClases(
-              "inline-flex items-center gap-1.5 whitespace-nowrap rounded-pill px-2.5 py-1 text-[11px] font-semibold tracking-[0.02em]",
-              CHIP_ESTADO[ruta.estado],
-            )}
-          >
-            <span
-              className={combinarClases(
-                "h-1.5 w-1.5 shrink-0 rounded-full bg-current",
-                ruta.estado === "en_curso" && "animate-pulso-chip motion-reduce:animate-none",
-              )}
-            />
-            {ETIQUETA_ESTADO[ruta.estado]}
-          </span>
+          <ChipEstadoRuta estado={ruta.estado} />
         </CabeceraTarjeta>
         <DatoNumerico as="p">
           {ruta.paradas.length} paradas

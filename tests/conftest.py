@@ -1,3 +1,5 @@
+from itertools import pairwise
+
 import psycopg
 import pytest
 from fastapi.testclient import TestClient
@@ -33,6 +35,109 @@ def payload_chofer(email, contrasena="soloYoManejo1", nombre_completo="Carlos So
     }
     payload.update(overrides)
     return payload
+
+
+def payload_empresa(
+    nombre_empresa="Distribuidora Test",
+    email="admin@test.com",
+    contrasena="contrasenaSegura123",
+    nombre_completo="Admin Test",
+    **overrides,
+):
+    payload = {
+        "nombre_empresa": nombre_empresa,
+        "email": email,
+        "contrasena": contrasena,
+        "confirmar_contrasena": contrasena,
+        "nombre_completo": nombre_completo,
+    }
+    payload.update(overrides)
+    return payload
+
+
+def payload_chofer_invitado(
+    codigo_invitacion,
+    email,
+    contrasena="otraSegura123",
+    nombre_completo="Chofer Invitado",
+    patente="XY987ZW",
+    **overrides,
+):
+    payload = {
+        "email": email,
+        "contrasena": contrasena,
+        "confirmar_contrasena": contrasena,
+        "nombre_completo": nombre_completo,
+        "telefono": "+54 9 261 555-0200",
+        "tipo_vehiculo": "furgon",
+        "patente": patente,
+        "capacidad_carga_kg": 300,
+        "codigo_invitacion": codigo_invitacion,
+    }
+    payload.update(overrides)
+    return payload
+
+
+def crear_empresa_con_chofer(
+    client,
+    email_admin="admin@empresa.com",
+    contrasena_admin="contrasenaSegura123",
+    email_chofer="chofer@empresa.com",
+    patente_chofer="XY987ZW",
+):
+    """Registra una empresa (deja sesión de admin activa), invita y registra
+    un chofer de esa empresa, y vuelve a loguear como admin al final —
+    usado por los tests de vehiculos/incidencias/empresa/reoptimización que
+    necesitan un admin y al menos un chofer de la misma empresa.
+    Devuelve (admin_json, chofer_json)."""
+    admin = client.post(
+        "/api/v1/auth/registro/empresa",
+        json=payload_empresa(email=email_admin, contrasena=contrasena_admin),
+    ).json()
+    codigo = client.post("/api/v1/auth/invitaciones").json()["codigo"]
+    client.cookies.clear()
+    chofer = client.post(
+        "/api/v1/auth/registro/chofer-invitado",
+        json=payload_chofer_invitado(codigo, email_chofer, patente=patente_chofer),
+    ).json()
+    client.cookies.clear()
+    client.post("/api/v1/auth/login", json={"email": email_admin, "contrasena": contrasena_admin})
+    return admin, chofer
+
+
+def _matriz_sintetica(coordenadas):
+    # Distancias/tiempos con parte fraccionaria a propósito — OSRM real
+    # devuelve floats (ej. 4538.5 metros), no enteros. Un valor entero acá
+    # hubiera dejado pasar el bug de int_from_float que rompió esto en vivo.
+    n = len(coordenadas)
+    distancias = [[abs(i - j) * 1000.5 for j in range(n)] for i in range(n)]
+    tiempos = [[abs(i - j) * 60.5 for j in range(n)] for i in range(n)]
+    return {"matriz_distancias_metros": distancias, "matriz_tiempos_segundos": tiempos}
+
+
+@pytest.fixture
+def osrm_falso(monkeypatch):
+    """Reemplaza la llamada real a OSRM por una matriz sintética
+    determinística — evita depender del servidor público en los tests.
+    Parchea todos los módulos que llaman obtener_matriz_osrm directamente
+    (planificador y reoptimizador comparten la misma firma)."""
+    monkeypatch.setattr("routing.planificador.obtener_matriz_osrm", _matriz_sintetica)
+    monkeypatch.setattr("routing.reoptimizador.obtener_matriz_osrm", _matriz_sintetica)
+
+
+def _geometria_sintetica(coordenadas):
+    # Un tramo por cada par de coordenadas consecutivas, igual que la forma real
+    # de obtener_geometria_osrm (steps=true separa la traza por leg).
+    return [
+        [(origen["latitud"], origen["longitud"]), (destino["latitud"], destino["longitud"])]
+        for origen, destino in pairwise(coordenadas)
+    ]
+
+
+@pytest.fixture
+def osrm_geometria_falsa(monkeypatch):
+    monkeypatch.setattr("api.routes_rutas.obtener_geometria_osrm", _geometria_sintetica)
+    monkeypatch.setattr("api.routes_empresa.obtener_geometria_osrm", _geometria_sintetica)
 
 
 _URL_BASE = settings.database_url

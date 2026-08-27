@@ -1,7 +1,3 @@
-from itertools import pairwise
-
-import pytest
-
 from tests.conftest import payload_chofer
 
 BASE_RUTAS = "/api/v1/rutas"
@@ -29,37 +25,6 @@ def _registrar_chofer_independiente(client, email="chofer-ruta@test.com", patent
     return client.post(
         "/api/v1/auth/registro/chofer-independiente", json=payload_chofer(email, patente=patente)
     )
-
-
-def _matriz_sintetica(coordenadas):
-    # Distancias/tiempos con parte fraccionaria a propósito — OSRM real
-    # devuelve floats (ej. 4538.5 metros), no enteros. Un valor entero acá
-    # hubiera dejado pasar el bug de int_from_float que rompió esto en vivo.
-    n = len(coordenadas)
-    distancias = [[abs(i - j) * 1000.5 for j in range(n)] for i in range(n)]
-    tiempos = [[abs(i - j) * 60.5 for j in range(n)] for i in range(n)]
-    return {"matriz_distancias_metros": distancias, "matriz_tiempos_segundos": tiempos}
-
-
-@pytest.fixture
-def osrm_falso(monkeypatch):
-    """Reemplaza la llamada real a OSRM por una matriz sintética
-    determinística — evita depender del servidor público en los tests."""
-    monkeypatch.setattr("routing.planificador.obtener_matriz_osrm", _matriz_sintetica)
-
-
-def _geometria_sintetica(coordenadas):
-    # Un tramo por cada par de coordenadas consecutivas, igual que la forma real
-    # de obtener_geometria_osrm (steps=true separa la traza por leg).
-    return [
-        [(origen["latitud"], origen["longitud"]), (destino["latitud"], destino["longitud"])]
-        for origen, destino in pairwise(coordenadas)
-    ]
-
-
-@pytest.fixture
-def osrm_geometria_falsa(monkeypatch):
-    monkeypatch.setattr("api.routes_rutas.obtener_geometria_osrm", _geometria_sintetica)
 
 
 def _armar_chofer_con_lugares(client):

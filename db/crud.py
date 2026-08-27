@@ -5,7 +5,7 @@ from datetime import UTC, date, datetime
 from typing import Protocol
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from db.modelos import (
     Cliente,
@@ -15,10 +15,12 @@ from db.modelos import (
     Empresa,
     EstadoParada,
     EstadoRuta,
+    Incidencia,
     ParadaRuta,
     PlanSuscripcion,
     RolUsuario,
     Ruta,
+    TipoIncidencia,
     TipoProblema,
     TipoVehiculo,
     Usuario,
@@ -61,6 +63,26 @@ class DatosDeposito(Protocol):
     longitud: float
     ventana_inicio: int | None
     ventana_fin: int | None
+
+
+class DatosVehiculo(Protocol):
+    """Forma estructural que necesita crear_vehiculo — cumplida por
+    api/schemas_vehiculos.py.VehiculoCrear."""
+
+    tipo_vehiculo: TipoVehiculo
+    patente: str
+    capacidad_carga_kg: int
+    usuario_id: uuid.UUID | None
+
+
+class DatosIncidencia(Protocol):
+    """Forma estructural que necesita crear_incidencia — cumplida por
+    api/schemas_incidencias.py.IncidenciaCrear."""
+
+    ruta_id: uuid.UUID
+    parada_id: uuid.UUID | None
+    tipo: TipoIncidencia
+    descripcion: str | None
 
 
 def obtener_usuario_por_email(db: Session, email: str) -> Usuario | None:
@@ -174,9 +196,9 @@ def marcar_codigo_usado(db: Session, invitacion: CodigoInvitacion, usuario_id: u
     guardar(db, invitacion)
 
 
-def _condicion_dueño(modelo: type[Cliente] | type[Deposito], duenio: Duenio):
+def _condicion_dueño(modelo: type[Cliente] | type[Deposito] | type[Vehiculo], duenio: Duenio):
     """Condición SQL de dueño, compartida por cualquier modelo con
-    DuenioMixin (hoy Cliente y Deposito) — un solo lugar donde vive el
+    DuenioMixin (Cliente, Deposito, Vehiculo) — un solo lugar donde vive el
     filtro, en vez de repetirlo por modelo."""
     return (
         modelo.empresa_id == duenio.empresa_id
@@ -289,6 +311,78 @@ def eliminar_deposito(db: Session, deposito: Deposito) -> None:
     guardar(db, deposito)
 
 
+def crear_vehiculo(db: Session, datos: DatosVehiculo, duenio: Duenio) -> Vehiculo:
+    return guardar(
+        db,
+        Vehiculo(
+            empresa_id=duenio.empresa_id,
+            usuario_id=datos.usuario_id if duenio.empresa_id else duenio.usuario_id,
+            tipo_vehiculo=datos.tipo_vehiculo,
+            patente=datos.patente,
+            capacidad_carga_kg=datos.capacidad_carga_kg,
+        ),
+    )
+
+
+def listar_vehiculos(db: Session, duenio: Duenio) -> list[Vehiculo]:
+    return list(
+        db.execute(
+            select(Vehiculo)
+            .where(_condicion_dueño(Vehiculo, duenio), Vehiculo.activo.is_(True))
+            .order_by(Vehiculo.patente)
+        ).scalars()
+    )
+
+
+def obtener_vehiculo_propio(db: Session, vehiculo_id: uuid.UUID, duenio: Duenio) -> Vehiculo | None:
+    return db.execute(
+        select(Vehiculo).where(Vehiculo.id == vehiculo_id, _condicion_dueño(Vehiculo, duenio))
+    ).scalar_one_or_none()
+
+
+def actualizar_vehiculo(db: Session, vehiculo: Vehiculo, cambios: dict[str, object]) -> Vehiculo:
+    for campo, valor in cambios.items():
+        setattr(vehiculo, campo, valor)
+    return guardar(db, vehiculo)
+
+
+def eliminar_vehiculo(db: Session, vehiculo: Vehiculo) -> None:
+    vehiculo.activo = False
+    guardar(db, vehiculo)
+
+
+def listar_choferes_empresa(db: Session, empresa_id: uuid.UUID) -> list[Usuario]:
+    """Choferes disponibles para que un admin les asigne una ruta o un
+    vehículo — alimenta los selectores del dashboard de empresa."""
+    return list(
+        db.execute(
+            select(Usuario)
+            .where(
+                Usuario.empresa_id == empresa_id,
+                Usuario.rol == RolUsuario.CHOFER,
+                Usuario.activo.is_(True),
+            )
+            .options(selectinload(Usuario.vehiculos))
+            .order_by(Usuario.nombre_completo)
+        ).scalars()
+    )
+
+
+def obtener_chofer_de_empresa(
+    db: Session, chofer_id: uuid.UUID, empresa_id: uuid.UUID
+) -> Usuario | None:
+    """Chofer válido como destino de una ruta asignada por un admin — debe
+    pertenecer a esa empresa y tener rol chofer, no cualquier Usuario."""
+    return db.execute(
+        select(Usuario).where(
+            Usuario.id == chofer_id,
+            Usuario.empresa_id == empresa_id,
+            Usuario.rol == RolUsuario.CHOFER,
+            Usuario.activo.is_(True),
+        )
+    ).scalar_one_or_none()
+
+
 def obtener_ruta_activa(db: Session, chofer_id: uuid.UUID, fecha: date) -> Ruta | None:
     return db.execute(
         select(Ruta).where(
@@ -308,16 +402,20 @@ def crear_ruta(
     distancia_total_m: int,
     explicacion: str,
     paradas: list[dict],
+    creado_por: Usuario | None = None,
 ) -> Ruta:
     """`paradas`: lista de {"cliente": Cliente, "orden": int, "carga_kg": int},
-    ya en el orden que resolvió el solver (ver routing/planificador.py)."""
+    ya en el orden que resolvió el solver (ver routing/planificador.py).
+    `creado_por` es quién asignó la ruta — el propio chofer si es
+    independiente (default), o el admin de su empresa cuando se la asigna
+    (api/routes_empresa.py)."""
     ruta = guardar(
         db,
         Ruta(
             chofer_id=chofer.id,
             vehiculo_id=vehiculo.id,
             deposito_id=deposito.id,
-            creado_por_usuario_id=chofer.id,
+            creado_por_usuario_id=(creado_por or chofer).id,
             fecha=fecha,
             tipo_problema=TipoProblema.CVRP,
             estado=EstadoRuta.PLANIFICADA,
@@ -381,3 +479,87 @@ def completar_parada(db: Session, ruta: Ruta, parada: ParadaRuta) -> Ruta:
 
 def obtener_parada_de_ruta(db: Session, ruta: Ruta, parada_id: uuid.UUID) -> ParadaRuta | None:
     return next((p for p in ruta.paradas if p.id == parada_id), None)
+
+
+def _condicion_ruta_empresa(empresa_id: uuid.UUID):
+    """Ruta no tiene empresa_id propio — se scopea vía el chofer que la
+    tiene asignada. No usar Ruta.deposito_id para esto: en teoría podría
+    divergir del chofer y filtraría mal."""
+    return Ruta.chofer_id.in_(select(Usuario.id).where(Usuario.empresa_id == empresa_id))
+
+
+_CARGA_RUTA_EMPRESA = (
+    selectinload(Ruta.chofer),
+    selectinload(Ruta.vehiculo),
+    selectinload(Ruta.deposito),
+    selectinload(Ruta.paradas),
+)
+
+
+def listar_rutas_empresa(db: Session, empresa_id: uuid.UUID, fecha: date) -> list[Ruta]:
+    return list(
+        db.execute(
+            select(Ruta)
+            .where(_condicion_ruta_empresa(empresa_id), Ruta.fecha == fecha)
+            .options(*_CARGA_RUTA_EMPRESA)
+            .order_by(Ruta.fecha_creacion)
+        ).scalars()
+    )
+
+
+def obtener_ruta_empresa(db: Session, empresa_id: uuid.UUID, ruta_id: uuid.UUID) -> Ruta | None:
+    return db.execute(
+        select(Ruta)
+        .where(Ruta.id == ruta_id, _condicion_ruta_empresa(empresa_id))
+        .options(*_CARGA_RUTA_EMPRESA)
+    ).scalar_one_or_none()
+
+
+def listar_paradas_empresa(db: Session, empresa_id: uuid.UUID, fecha: date) -> list[ParadaRuta]:
+    """Vista "Pedidos": paradas de todas las rutas de la empresa en `fecha`,
+    aplanadas — no existe una entidad Pedido separada, esto reusa
+    ParadaRuta tal cual."""
+    return list(
+        db.execute(
+            select(ParadaRuta)
+            .join(Ruta, ParadaRuta.ruta_id == Ruta.id)
+            .where(_condicion_ruta_empresa(empresa_id), Ruta.fecha == fecha)
+            .options(
+                selectinload(ParadaRuta.ruta).selectinload(Ruta.chofer),
+                selectinload(ParadaRuta.ruta).selectinload(Ruta.vehiculo),
+            )
+            .order_by(Ruta.fecha_creacion, ParadaRuta.orden)
+        ).scalars()
+    )
+
+
+def crear_incidencia(db: Session, datos: DatosIncidencia, reportado_por: Usuario) -> Incidencia:
+    return guardar(
+        db,
+        Incidencia(
+            ruta_id=datos.ruta_id,
+            parada_id=datos.parada_id,
+            tipo=datos.tipo,
+            descripcion=datos.descripcion,
+            reportado_por_usuario_id=reportado_por.id,
+        ),
+    )
+
+
+def listar_incidencias_empresa(
+    db: Session, empresa_id: uuid.UUID, fecha: date | None = None
+) -> list[Incidencia]:
+    condicion = (
+        select(Incidencia)
+        .join(Ruta, Incidencia.ruta_id == Ruta.id)
+        .where(_condicion_ruta_empresa(empresa_id))
+    )
+    if fecha is not None:
+        condicion = condicion.where(Ruta.fecha == fecha)
+    return list(
+        db.execute(
+            condicion.options(
+                selectinload(Incidencia.ruta), selectinload(Incidencia.reportado_por)
+            ).order_by(Incidencia.fecha_hora.desc())
+        ).scalars()
+    )

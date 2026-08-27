@@ -5,7 +5,7 @@ from itertools import pairwise
 from sqlalchemy.orm import Session
 
 from db import crud
-from db.modelos import Cliente, Deposito, Usuario, Vehiculo
+from db.modelos import Cliente, Deposito, Ruta, Usuario, Vehiculo
 from routing.solver import resolver_ruteo
 from services.osrm_client import obtener_matriz_osrm
 
@@ -37,6 +37,21 @@ class ResultadoPlanificacion:
 
 def _distancia_recorrido(matriz_distancias: list, secuencia_nodos: list[int]) -> int:
     return sum(int(matriz_distancias[a][b]) for a, b in pairwise(secuencia_nodos))
+
+
+def coordenadas_de_ruta(ruta: Ruta) -> list[dict]:
+    """Depósito → cada parada en orden → depósito, en el formato que espera
+    obtener_geometria_osrm/obtener_matriz_osrm. Compartido por la geometría
+    de una sola ruta (api/routes_rutas.py, api/routes_empresa.py) para no
+    duplicar este armado en cada lugar que necesite trazar una Ruta."""
+    return (
+        [{"latitud": ruta.deposito.latitud, "longitud": ruta.deposito.longitud}]
+        + [
+            {"latitud": parada.latitud_snapshot, "longitud": parada.longitud_snapshot}
+            for parada in ruta.paradas
+        ]
+        + [{"latitud": ruta.deposito.latitud, "longitud": ruta.deposito.longitud}]
+    )
 
 
 def planificar_ruta(

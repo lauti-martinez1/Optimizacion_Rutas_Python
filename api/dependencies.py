@@ -11,6 +11,7 @@ __all__ = [
     "get_db",
     "obtener_usuario_actual",
     "requiere_admin",
+    "requiere_chofer",
     "requiere_chofer_independiente",
 ]
 
@@ -41,6 +42,16 @@ def requiere_admin(usuario: Usuario = Depends(obtener_usuario_actual)) -> Usuari
         # un endpoint downstream (ej. generar_invitacion) reviente con un
         # IntegrityError sin manejar contra codigos_invitacion.empresa_id.
         raise HTTPException(status_code=500, detail="Cuenta admin sin empresa asociada.")
+    return usuario
+
+
+def requiere_chofer(usuario: Usuario = Depends(obtener_usuario_actual)) -> Usuario:
+    """Ejecutar la propia ruta ya asignada (iniciar el día, marcar paradas)
+    es autoservicio de cualquier chofer, independiente o de empresa — a
+    diferencia de armar/editar el plan (requiere_chofer_independiente), que
+    para un chofer de empresa es tarea de su admin (api/routes_empresa.py)."""
+    if usuario.rol != RolUsuario.CHOFER:
+        raise HTTPException(status_code=403, detail="Se requiere rol de chofer.")
     return usuario
 
 

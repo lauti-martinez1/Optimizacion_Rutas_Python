@@ -5,8 +5,12 @@ from api.routes import router as router_ruteo
 from api.routes_auth import router as router_auth
 from api.routes_clientes import router as router_clientes
 from api.routes_depositos import router as router_depositos
+from api.routes_empresa import router as router_empresa
 from api.routes_geocoding import router as router_geocoding
+from api.routes_incidencias import router as router_incidencias
+from api.routes_reoptimizacion import router as router_reoptimizacion
 from api.routes_rutas import router as router_rutas
+from api.routes_vehiculos import router as router_vehiculos
 from core.config import settings
 
 app = FastAPI(
@@ -27,5 +31,9 @@ app.include_router(router_ruteo)
 app.include_router(router_auth)
 app.include_router(router_clientes)
 app.include_router(router_depositos)
+app.include_router(router_empresa)
 app.include_router(router_geocoding)
+app.include_router(router_incidencias)
+app.include_router(router_reoptimizacion)
 app.include_router(router_rutas)
+app.include_router(router_vehiculos)

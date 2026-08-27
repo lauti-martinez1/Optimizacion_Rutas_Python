@@ -5,11 +5,21 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from api import schemas_rutas as schemas
-from api.dependencies import get_db, obtener_usuario_actual, requiere_chofer_independiente
+from api.dependencies import (
+    get_db,
+    obtener_usuario_actual,
+    requiere_chofer,
+    requiere_chofer_independiente,
+)
 from api.schemas_auth import MensajeResponse
 from db import crud
 from db.modelos import EstadoParada, EstadoRuta, Ruta, Usuario
-from routing.planificador import ErrorPlanificacion, ResultadoPlanificacion, planificar_ruta
+from routing.planificador import (
+    ErrorPlanificacion,
+    ResultadoPlanificacion,
+    coordenadas_de_ruta,
+    planificar_ruta,
+)
 from services.osrm_client import obtener_geometria_osrm
 
 router = APIRouter(prefix="/api/v1/rutas", tags=["Rutas"])
@@ -130,9 +140,7 @@ def eliminar_ruta_activa(
 
 
 @router.post("/activa/iniciar", response_model=schemas.RutaPublica)
-def iniciar_ruta_activa(
-    db: Session = Depends(get_db), usuario: Usuario = Depends(requiere_chofer_independiente)
-):
+def iniciar_ruta_activa(db: Session = Depends(get_db), usuario: Usuario = Depends(requiere_chofer)):
     ruta = _ruta_activa_o_404(db, usuario)
     if ruta.estado != EstadoRuta.PLANIFICADA:
         raise HTTPException(status_code=409, detail="Esta ruta ya está iniciada o cerrada.")
@@ -143,7 +151,7 @@ def iniciar_ruta_activa(
 def completar_parada_activa(
     parada_id: uuid.UUID,
     db: Session = Depends(get_db),
-    usuario: Usuario = Depends(requiere_chofer_independiente),
+    usuario: Usuario = Depends(requiere_chofer),
 ):
     ruta = _ruta_activa_o_404(db, usuario)
     if ruta.estado != EstadoRuta.EN_CURSO:
@@ -166,16 +174,8 @@ def geometria_ruta_activa(
     db: Session = Depends(get_db), usuario: Usuario = Depends(obtener_usuario_actual)
 ):
     ruta = _ruta_activa_o_404(db, usuario)
-    coordenadas = (
-        [{"latitud": ruta.deposito.latitud, "longitud": ruta.deposito.longitud}]
-        + [
-            {"latitud": parada.latitud_snapshot, "longitud": parada.longitud_snapshot}
-            for parada in ruta.paradas
-        ]
-        + [{"latitud": ruta.deposito.latitud, "longitud": ruta.deposito.longitud}]
-    )
     try:
-        tramos = obtener_geometria_osrm(coordenadas)
+        tramos = obtener_geometria_osrm(coordenadas_de_ruta(ruta))
     except Exception as error:
         raise HTTPException(
             status_code=502, detail=f"No se pudo trazar el camino: {error}"
