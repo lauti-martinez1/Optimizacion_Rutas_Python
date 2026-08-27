@@ -29,6 +29,9 @@ export function FormularioCliente({ cliente, onGuardado, onCancelar }: Props) {
       if (latitud == null || longitud == null) {
         throw new ErrorFormulario("Marcá la ubicación en el mapa antes de guardar.");
       }
+      if (direccion.trim().length < 3) {
+        throw new ErrorFormulario("Ingresá o buscá una dirección antes de guardar.");
+      }
       const datos = { nombre, direccion, telefono: telefono || null, latitud, longitud };
       if (cliente) {
         await actualizarCliente(cliente.id, datos);
@@ -49,13 +52,6 @@ export function FormularioCliente({ cliente, onGuardado, onCancelar }: Props) {
         onChange={(e) => setNombre(e.target.value)}
       />
       <Campo
-        etiqueta="Dirección"
-        placeholder="Calle, número, ciudad"
-        required
-        value={direccion}
-        onChange={(e) => setDireccion(e.target.value)}
-      />
-      <Campo
         etiqueta="Teléfono (opcional)"
         type="tel"
         placeholder="+54 9 261 555-0100"
@@ -65,11 +61,12 @@ export function FormularioCliente({ cliente, onGuardado, onCancelar }: Props) {
       <SelectorUbicacion
         latitud={latitud}
         longitud={longitud}
-        onCambiar={(lat, lon, direccionSugerida) => {
+        onCambiar={(lat, lon) => {
           setLatitud(lat);
           setLongitud(lon);
-          if (direccionSugerida) setDireccion(direccionSugerida);
         }}
+        direccion={direccion}
+        onCambiarDireccion={setDireccion}
       />
       <div className="flex gap-2.5 [&>*]:flex-1">
         <Boton type="button" variante="secundario" onClick={onCancelar}>

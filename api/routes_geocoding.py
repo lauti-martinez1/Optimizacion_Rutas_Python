@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends, Query
 
 from api.dependencies import obtener_usuario_actual
-from api.schemas_geocoding import DireccionSugerida
+from api.schemas_geocoding import DireccionSugerida, ResultadoBusquedaDireccion
 from db.modelos import Usuario
-from services.nominatim_client import geocodificar_inverso
+from services.nominatim_client import geocodificar, geocodificar_inverso
 
 router = APIRouter(prefix="/api/v1/geocoding", tags=["Geocoding"])
 
@@ -15,3 +15,11 @@ def geocoding_inverso(
     usuario: Usuario = Depends(obtener_usuario_actual),
 ):
     return DireccionSugerida(direccion=geocodificar_inverso(latitud, longitud))
+
+
+@router.get("/buscar", response_model=list[ResultadoBusquedaDireccion])
+def geocoding_buscar(
+    q: str = Query(..., min_length=3),
+    usuario: Usuario = Depends(obtener_usuario_actual),
+):
+    return geocodificar(q)

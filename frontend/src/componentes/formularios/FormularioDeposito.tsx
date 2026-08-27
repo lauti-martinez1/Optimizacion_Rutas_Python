@@ -20,6 +20,9 @@ export function FormularioDeposito({ deposito = null, onGuardado, onCancelar }: 
   const [nombre, setNombre] = useState(deposito?.nombre ?? "Mi base");
   const [latitud, setLatitud] = useState<number | null>(deposito?.latitud ?? null);
   const [longitud, setLongitud] = useState<number | null>(deposito?.longitud ?? null);
+  // El Depósito no tiene columna de dirección — este texto es solo la
+  // confirmación visual de SelectorUbicacion, nunca se guarda.
+  const [direccion, setDireccion] = useState("");
 
   function manejarSubmit(evento: FormEvent) {
     evento.preventDefault();
@@ -56,6 +59,8 @@ export function FormularioDeposito({ deposito = null, onGuardado, onCancelar }: 
           setLatitud(lat);
           setLongitud(lon);
         }}
+        direccion={direccion}
+        onCambiarDireccion={setDireccion}
       />
       <div className="flex gap-2.5 [&>*]:flex-1">
         <Boton type="button" variante="secundario" onClick={onCancelar}>

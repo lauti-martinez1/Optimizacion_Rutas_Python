@@ -11,9 +11,10 @@ const CENTRO_MENDOZA: [number, number] = [-32.8908, -68.8272];
 // Marcadores dibujados en CSS (DivIcon), no imágenes — así el color sale de
 // los tokens del sistema y sigue el mismo código de estado que las tarjetas
 // (mismo verde que el anillo de "en curso" en la lista y el chip de estado
-// de la Ruta). Una vez completada, la parada se saca del mapa por completo
-// (ver `paradasVisibles` más abajo) en vez de pintarla — así el mapa se va
-// limpiando a medida que avanza el día en lugar de acumular marcas.
+// de la Ruta). Una vez completada, la parada se saca del mapa — salvo la
+// que dio origen al tramo que se está recorriendo ahora mismo (ver
+// `paradasVisibles` más abajo): sacarla de inmediato borraba de dónde salía
+// el trayecto actual, y quedaba una línea sin punto de partida visible.
 //
 // El HTML de estos íconos lo consume Leaflet directamente (fuera del árbol
 // de React), pero las clases de Tailwind siguen siendo literales completas
@@ -72,9 +73,16 @@ export function MapaRutaActiva({ deposito, paradas }: Props) {
       .catch(() => setTramos([]));
   }, []);
 
-  // Una parada completada se saca del mapa (pin y bounds) — ver el comentario
-  // sobre CLASE_MARCADOR más arriba.
-  const paradasVisibles = paradas.filter((parada) => parada.estado !== "completada");
+  const indiceProxima = paradas.findIndex((parada) => parada.estado === "en_curso");
+  const proximaParada = indiceProxima === -1 ? undefined : paradas[indiceProxima];
+
+  // Una parada completada se saca del mapa — salvo la que dio origen al
+  // tramo en curso (la inmediatamente anterior a la próxima parada), que se
+  // mantiene visible hasta que ese tramo también se complete. Ver el
+  // comentario sobre CLASE_MARCADOR más arriba.
+  const paradasVisibles = paradas.filter(
+    (parada, indice) => parada.estado !== "completada" || indice === indiceProxima - 1,
+  );
 
   const puntosVisibles: [number, number][] = [
     [deposito.latitud, deposito.longitud],
@@ -85,14 +93,17 @@ export function MapaRutaActiva({ deposito, paradas }: Props) {
   ];
 
   // tramos[i] es el tramo que llega a paradas[i] (depósito→paradas[0],
-  // paradas[0]→paradas[1], …) — al completar una parada se oculta el tramo
-  // que llegaba a ella para ir despejando el trazo violeta, no solo el pin.
-  // El último tramo (vuelta al depósito) no tiene parada asociada y queda
-  // siempre visible.
-  const tramosVisibles = tramos.filter((_, indice) => paradas[indice]?.estado !== "completada");
+  // paradas[0]→paradas[1], …). El que llega a la próxima parada es el que
+  // se está recorriendo ahora — se dibuja aparte, en otro color, para que
+  // se distinga del resto de la ruta (ver el render más abajo). El resto de
+  // los tramos ya completados se ocultan a medida que avanza el día; el
+  // último tramo (vuelta al depósito) no tiene parada asociada y queda
+  // siempre entre los restantes.
+  const tramoActual = indiceProxima === -1 ? undefined : tramos[indiceProxima];
+  const tramosRestantes = tramos.filter(
+    (_, indice) => indice !== indiceProxima && paradas[indice]?.estado !== "completada",
+  );
 
-  const indiceProxima = paradas.findIndex((parada) => parada.estado === "en_curso");
-  const proximaParada = indiceProxima === -1 ? undefined : paradas[indiceProxima];
   // De dónde sale la navegación a la próxima parada: del depósito si es la
   // primera del día, o de la parada anterior (ya completada) si no — nunca
   // de la ubicación actual del dispositivo, que puede no ser confiable.
@@ -112,10 +123,16 @@ export function MapaRutaActiva({ deposito, paradas }: Props) {
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
-          {tramosVisibles.length > 0 && (
+          {tramosRestantes.length > 0 && (
             <Polyline
-              positions={tramosVisibles}
+              positions={tramosRestantes}
               pathOptions={{ color: "#7C3AED", weight: 3, opacity: 0.55 }}
+            />
+          )}
+          {tramoActual && tramoActual.length > 0 && (
+            <Polyline
+              positions={tramoActual}
+              pathOptions={{ color: "#12B76A", weight: 4, opacity: 0.85 }}
             />
           )}
           <Marker position={[deposito.latitud, deposito.longitud]} icon={iconoDeposito} />
