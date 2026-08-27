@@ -7,6 +7,7 @@ import { useState } from "react";
 import { MapContainer, Marker, TileLayer, useMapEvents } from "react-leaflet";
 
 import { geocodificarInverso } from "../../api/geocoding";
+import { CampoContenedor } from "../ui/CampoContenedor";
 
 // El bundler no resuelve las rutas relativas que Leaflet usa por defecto
 // para el ícono del pin — hay que apuntarlas a mano a los assets importados.
@@ -60,9 +61,8 @@ export function SelectorUbicacion({ latitud, longitud, onCambiar }: Props) {
   }
 
   return (
-    <div className="campo">
-      <span className="campo__etiqueta">Ubicación — tocá el mapa para marcarla</span>
-      <div className="selector-ubicacion__mapa">
+    <CampoContenedor etiqueta="Ubicación — tocá el mapa para marcarla">
+      <div className="overflow-hidden rounded-md border border-borde-input">
         <MapContainer center={centro} zoom={hayUbicacion ? 15 : 12} style={{ height: "220px" }}>
           <TileLayer
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
@@ -72,13 +72,13 @@ export function SelectorUbicacion({ latitud, longitud, onCambiar }: Props) {
           <ManejadorClicksMapa onClick={manejarClickMapa} />
         </MapContainer>
       </div>
-      {buscando && <span className="selector-ubicacion__estado">Buscando dirección…</span>}
+      {buscando && <span className="mt-1.5 block text-xs text-texto-mutado">Buscando dirección…</span>}
       {!buscando && direccionResuelta && (
-        <span className="selector-ubicacion__estado">{direccionResuelta}</span>
+        <span className="mt-1.5 block text-xs text-texto-mutado">{direccionResuelta}</span>
       )}
       {!hayUbicacion && !buscando && (
-        <span className="campo__error">Todavía no marcaste la ubicación.</span>
+        <span className="text-[11.5px] text-peligro">Todavía no marcaste la ubicación.</span>
       )}
-    </div>
+    </CampoContenedor>
   );
 }

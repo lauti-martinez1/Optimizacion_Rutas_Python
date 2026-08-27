@@ -14,11 +14,28 @@ const CENTRO_MENDOZA: [number, number] = [-32.8908, -68.8272];
 // de la Ruta). Una vez completada, la parada se saca del mapa por completo
 // (ver `paradasVisibles` más abajo) en vez de pintarla — así el mapa se va
 // limpiando a medida que avanza el día en lugar de acumular marcas.
+//
+// El HTML de estos íconos lo consume Leaflet directamente (fuera del árbol
+// de React), pero las clases de Tailwind siguen siendo literales completas
+// acá abajo — el scanner de Tailwind las encuentra igual, solo la selección
+// de cuál usar pasa en runtime, nunca la construcción del string de clases.
+const CLASE_MARCADOR: Record<ParadaRutaPublica["estado"], string> = {
+  pendiente:
+    "h-4 w-4 rounded-full border-[2.5px] border-blanco bg-texto-tenue shadow-[0_1px_4px_rgba(16,24,40,0.4)]",
+  en_curso:
+    "h-6 w-6 animate-pulso-marcador rounded-full border-[3px] border-blanco bg-exito " +
+    "shadow-[0_1px_4px_rgba(16,24,40,0.4)] motion-reduce:animate-none",
+  completada:
+    "h-4 w-4 rounded-full border-[2.5px] border-blanco bg-exito shadow-[0_1px_4px_rgba(16,24,40,0.4)]",
+  fallida:
+    "h-4 w-4 rounded-full border-[2.5px] border-blanco bg-peligro shadow-[0_1px_4px_rgba(16,24,40,0.4)]",
+};
+
 function iconoParada(estado: ParadaRutaPublica["estado"]) {
-  const tamanio = estado === "en_curso" ? 28 : 20;
+  const tamanio = estado === "en_curso" ? 24 : 16;
   return L.divIcon({
     className: "",
-    html: `<div class="marcador-parada marcador-parada--${estado}"></div>`,
+    html: `<div class="${CLASE_MARCADOR[estado]}"></div>`,
     iconSize: [tamanio, tamanio],
     iconAnchor: [tamanio / 2, tamanio / 2],
   });
@@ -26,7 +43,7 @@ function iconoParada(estado: ParadaRutaPublica["estado"]) {
 
 const iconoDeposito = L.divIcon({
   className: "",
-  html: '<div class="marcador-deposito"></div>',
+  html: '<div class="h-[18px] w-[18px] rounded-full border-[2.5px] border-blanco bg-texto-fuerte shadow-[0_1px_4px_rgba(16,24,40,0.45)]"></div>',
   iconSize: [22, 22],
   iconAnchor: [11, 11],
 });
@@ -56,7 +73,7 @@ export function MapaRutaActiva({ deposito, paradas }: Props) {
   }, []);
 
   // Una parada completada se saca del mapa (pin y bounds) — ver el comentario
-  // sobre iconoParada más arriba.
+  // sobre CLASE_MARCADOR más arriba.
   const paradasVisibles = paradas.filter((parada) => parada.estado !== "completada");
 
   const puntosVisibles: [number, number][] = [
@@ -88,32 +105,34 @@ export function MapaRutaActiva({ deposito, paradas }: Props) {
         };
 
   return (
-    <div className="mapa-ruta-activa">
-      <MapContainer center={CENTRO_MENDOZA} zoom={13} style={{ height: "280px" }}>
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
-        {tramosVisibles.length > 0 && (
-          <Polyline
-            positions={tramosVisibles}
-            pathOptions={{ color: "#7C3AED", weight: 3, opacity: 0.55 }}
+    <div className="relative overflow-hidden rounded-lg border border-borde bg-superficie-hundida shadow-sm">
+      <div className="h-[280px] xl:h-[520px]">
+        <MapContainer center={CENTRO_MENDOZA} zoom={13} style={{ height: "100%" }}>
+          <TileLayer
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
-        )}
-        <Marker position={[deposito.latitud, deposito.longitud]} icon={iconoDeposito} />
-        {paradasVisibles.map((parada) => (
-          <Marker
-            key={parada.id}
-            position={[parada.latitud_snapshot, parada.longitud_snapshot]}
-            icon={iconoParada(parada.estado)}
-          />
-        ))}
-        <AjustarVista puntos={puntosVisibles} />
-      </MapContainer>
+          {tramosVisibles.length > 0 && (
+            <Polyline
+              positions={tramosVisibles}
+              pathOptions={{ color: "#7C3AED", weight: 3, opacity: 0.55 }}
+            />
+          )}
+          <Marker position={[deposito.latitud, deposito.longitud]} icon={iconoDeposito} />
+          {paradasVisibles.map((parada) => (
+            <Marker
+              key={parada.id}
+              position={[parada.latitud_snapshot, parada.longitud_snapshot]}
+              icon={iconoParada(parada.estado)}
+            />
+          ))}
+          <AjustarVista puntos={puntosVisibles} />
+        </MapContainer>
+      </div>
 
       {proximaParada && (
         <a
-          className="mapa-ruta-activa__navegar-pill"
+          className="absolute top-3 right-3 z-[500] flex h-[34px] items-center rounded-pill border border-borde bg-[rgba(255,255,255,0.92)] px-[13px] text-[10.5px] font-semibold text-texto-fuerte shadow-sm backdrop-blur-[8px]"
           href={`https://www.google.com/maps/dir/?api=1&origin=${origenNavegacion.latitud},${origenNavegacion.longitud}&destination=${proximaParada.latitud_snapshot},${proximaParada.longitud_snapshot}`}
           target="_blank"
           rel="noopener noreferrer"
@@ -123,9 +142,11 @@ export function MapaRutaActiva({ deposito, paradas }: Props) {
       )}
 
       {proximaParada && (
-        <div className="mapa-ruta-activa__proxima">
-          <span className="mapa-ruta-activa__punto" />
-          <p className="mapa-ruta-activa__proxima-direccion">{proximaParada.direccion_snapshot}</p>
+        <div className="absolute right-3 bottom-2.5 left-3 z-[500] flex items-center gap-2.5 rounded-md border border-borde bg-[rgba(255,255,255,0.94)] px-3 py-2.5 shadow-md backdrop-blur-[8px]">
+          <span className="h-2 w-2 shrink-0 rounded-full bg-exito" />
+          <p className="min-w-0 flex-1 truncate text-[11.5px] font-semibold text-texto-fuerte">
+            {proximaParada.direccion_snapshot}
+          </p>
         </div>
       )}
     </div>

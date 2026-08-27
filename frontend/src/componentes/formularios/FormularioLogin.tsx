@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 
 import { Boton } from "../ui/Boton";
 import { Campo } from "../ui/Campo";
+import { Formulario } from "../ui/Formulario";
 import { useEnvioFormulario } from "../../hooks/useEnvioFormulario";
 import { useAuthStore } from "../../store/useAuthStore";
 
@@ -23,8 +24,7 @@ export function FormularioLogin() {
   }
 
   return (
-    <form onSubmit={manejarSubmit}>
-      {error && <div className="error-formulario">{error}</div>}
+    <Formulario onSubmit={manejarSubmit} error={error}>
       <Campo
         etiqueta="Email"
         type="email"
@@ -44,6 +44,6 @@ export function FormularioLogin() {
       <Boton type="submit" cargando={enviando}>
         Iniciar sesión
       </Boton>
-    </form>
+    </Formulario>
   );
 }

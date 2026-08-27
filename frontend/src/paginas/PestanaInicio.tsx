@@ -3,6 +3,10 @@ import { useEffect, useState } from "react";
 import { completarParada, eliminarRuta, iniciarRuta, obtenerRutaActiva } from "../api/rutas";
 import { MapaRutaActiva } from "../componentes/rutas/MapaRutaActiva";
 import { Boton } from "../componentes/ui/Boton";
+import { CabeceraTarjeta, TarjetaContenido, TituloTarjeta } from "../componentes/ui/TarjetaContenido";
+import { TarjetaLugar } from "../componentes/ui/TarjetaLugar";
+import { TextoEyebrow } from "../componentes/ui/TextoEyebrow";
+import { combinarClases } from "../componentes/ui/combinarClases";
 import type { EstadoRuta, RutaPublica } from "../tipos/ruta";
 
 const ETIQUETA_ESTADO: Record<EstadoRuta, string> = {
@@ -11,6 +15,15 @@ const ETIQUETA_ESTADO: Record<EstadoRuta, string> = {
   completada: "Completada",
   cancelada: "Cancelada",
 };
+
+const CHIP_ESTADO: Record<EstadoRuta, string> = {
+  planificada: "bg-primario/10 text-primario",
+  en_curso: "bg-exito-tint text-exito",
+  completada: "bg-exito-tint text-exito",
+  cancelada: "bg-peligro-tint text-peligro",
+};
+
+const DATO_NUMERICO = "font-mono text-[12.5px] font-medium text-texto-cuerpo whitespace-nowrap shrink-0";
 
 interface Props {
   onEditar: () => void;
@@ -60,18 +73,13 @@ export function PestanaInicio({ onEditar, onArmarRuta }: Props) {
   }
 
   if (cargando) {
-    return <p className="texto-vacio">Cargando…</p>;
+    return <p className="px-2 py-6 text-center text-[13px] text-texto-mutado">Cargando…</p>;
   }
 
   if (!ruta) {
     return (
-      <div className="estado-vacio-inicio">
-        <svg
-          className="estado-vacio-inicio__icono"
-          viewBox="0 0 48 48"
-          fill="none"
-          aria-hidden="true"
-        >
+      <div className="flex flex-col items-center gap-1 px-5 pt-12 pb-8 text-center">
+        <svg className="mb-3 h-12 w-12" viewBox="0 0 48 48" fill="none" aria-hidden="true">
           <path
             d="M8 34c6-10 10-14 16-14s10 4 16 14"
             stroke="var(--color-borde-input)"
@@ -82,11 +90,15 @@ export function PestanaInicio({ onEditar, onArmarRuta }: Props) {
           <circle cx="8" cy="34" r="4" fill="var(--color-texto-fuerte)" />
           <circle cx="40" cy="34" r="4" fill="var(--color-primario)" />
         </svg>
-        <p className="estado-vacio-inicio__titulo">Todavía no armaste la ruta de hoy</p>
-        <p className="estado-vacio-inicio__texto">
+        <p className="text-[15px] font-bold text-texto-fuerte">Todavía no armaste la ruta de hoy</p>
+        <p className="mb-5 max-w-[280px] text-[13px] text-texto-mutado">
           Elegí los lugares que visitás y te armamos el mejor orden para recorrerlos.
         </p>
-        {onArmarRuta && <Boton onClick={onArmarRuta}>Armar ruta de hoy</Boton>}
+        {onArmarRuta && (
+          <Boton tamanio="auto" onClick={onArmarRuta}>
+            Armar ruta de hoy
+          </Boton>
+        )}
       </div>
     );
   }
@@ -94,82 +106,90 @@ export function PestanaInicio({ onEditar, onArmarRuta }: Props) {
   const paradasCompletadas = ruta.paradas.filter((parada) => parada.estado === "completada").length;
   const cargaTotalKg = ruta.paradas.reduce((suma, parada) => suma + parada.demanda_carga_snapshot, 0);
   const cargaUsadaPct = Math.min(100, Math.round((cargaTotalKg / ruta.capacidad_vehiculo_kg) * 100));
+  const conMapa = ruta.estado === "en_curso";
 
   return (
-    <div className="pestana-lugares">
-      <div className="tarjeta-contenido">
-        <div className="tarjeta-contenido__cabecera">
-          <p className="tarjeta-contenido__titulo">Ruta de hoy</p>
-          <span className={`chip-estado chip-estado--${ruta.estado}`}>
-            <span className="chip-estado__punto" />
+    <div className="flex flex-col gap-4">
+      <TarjetaContenido>
+        <CabeceraTarjeta>
+          <TituloTarjeta>Ruta de hoy</TituloTarjeta>
+          <span
+            className={combinarClases(
+              "inline-flex items-center gap-1.5 whitespace-nowrap rounded-pill px-2.5 py-1 text-[11px] font-semibold tracking-[0.02em]",
+              CHIP_ESTADO[ruta.estado],
+            )}
+          >
+            <span
+              className={combinarClases(
+                "h-1.5 w-1.5 shrink-0 rounded-full bg-current",
+                ruta.estado === "en_curso" && "animate-pulso-chip motion-reduce:animate-none",
+              )}
+            />
             {ETIQUETA_ESTADO[ruta.estado]}
           </span>
-        </div>
-        <p className="dato-numerico">
+        </CabeceraTarjeta>
+        <p className={DATO_NUMERICO}>
           {ruta.paradas.length} paradas
           {ruta.distancia_total_m != null && ` · ${(ruta.distancia_total_m / 1000).toFixed(1)} km`}
         </p>
-        {ruta.explicacion && <p className="texto-ayuda">{ruta.explicacion}</p>}
+        {ruta.explicacion && <p className="text-[12.5px] text-texto-mutado">{ruta.explicacion}</p>}
         {(ruta.estado === "planificada" || ruta.estado === "en_curso") && (
           <>
-            <p className="resumen-ruta__eyebrow">Progreso del día</p>
-            <div className="resumen-ruta__stats">
-              <div className="resumen-ruta__stat">
-                <span className="resumen-ruta__valor">
+            <TextoEyebrow>Progreso del día</TextoEyebrow>
+            <div className="flex items-end justify-between gap-3 border-t border-borde pt-3">
+              <div className="flex flex-col gap-[3px]">
+                <span className="font-mono text-[28px] leading-none font-bold text-primario">
                   {paradasCompletadas}
-                  <span className="resumen-ruta__valor-total">/{ruta.paradas.length}</span>
+                  <span className="text-[19px] text-texto-tenue">/{ruta.paradas.length}</span>
                 </span>
-                <span className="resumen-ruta__etiqueta">entregas completadas</span>
+                <span className="text-[11.5px] font-medium text-texto-mutado">entregas completadas</span>
               </div>
-              <div className="resumen-ruta__stat resumen-ruta__stat--secundario">
-                <span className="resumen-ruta__valor resumen-ruta__valor--secundario">
-                  {cargaUsadaPct}%
-                </span>
-                <span className="resumen-ruta__etiqueta">carga</span>
+              <div className="flex flex-col items-end gap-[3px]">
+                <span className="text-[15px] font-semibold text-texto-fuerte">{cargaUsadaPct}%</span>
+                <span className="text-[10.5px] text-texto-tenue">carga</span>
               </div>
             </div>
           </>
         )}
-      </div>
+      </TarjetaContenido>
 
-      {error && <div className="error-formulario">{error}</div>}
-
-      {ruta.estado === "en_curso" && (
-        <MapaRutaActiva deposito={ruta.deposito} paradas={ruta.paradas} />
+      {error && (
+        <div className="rounded-md border border-peligro-borde bg-peligro-tint px-3 py-2.5 text-[12.5px] text-peligro">
+          {error}
+        </div>
       )}
 
-      <ol className="lista-lugares">
-        {ruta.paradas.map((parada) => (
-          <li
-            key={parada.id}
-            className={
-              "tarjeta-lugar" +
-              (parada.estado === "en_curso" ? " tarjeta-lugar--en-curso" : "") +
-              (parada.estado === "completada" ? " tarjeta-lugar--completada" : "")
-            }
-          >
-            <span className="tarjeta-lugar__numero">{parada.orden + 1}</span>
-            <div className="tarjeta-lugar__info">
-              <p className="tarjeta-lugar__nombre">{parada.nombre_snapshot}</p>
-              <p className="tarjeta-lugar__direccion">{parada.direccion_snapshot}</p>
-            </div>
-            {parada.estado === "en_curso" ? (
-              <Boton
-                variante="exito"
-                className="boton--chica"
-                cargando={enviando}
-                onClick={() =>
-                  ejecutar(() => completarParada(parada.id), "No se pudo marcar la parada.")
-                }
-              >
-                Marcar visitada
-              </Boton>
-            ) : (
-              <span className="dato-numerico">{parada.demanda_carga_snapshot} kg</span>
-            )}
-          </li>
-        ))}
-      </ol>
+      <div className={conMapa ? "xl:grid xl:grid-cols-[1fr_380px] xl:items-start xl:gap-5" : undefined}>
+        {conMapa && <MapaRutaActiva deposito={ruta.deposito} paradas={ruta.paradas} />}
+
+        <ol className={combinarClases("flex flex-col gap-2.5", conMapa && "xl:max-h-[520px] xl:overflow-y-auto")}>
+          {ruta.paradas.map((parada) => (
+            <TarjetaLugar
+              key={parada.id}
+              numero={parada.orden + 1}
+              nombre={parada.nombre_snapshot}
+              direccion={parada.direccion_snapshot}
+              estado={parada.estado === "en_curso" || parada.estado === "completada" ? parada.estado : undefined}
+              trailing={
+                parada.estado === "en_curso" ? (
+                  <Boton
+                    variante="exito"
+                    tamanio="chica"
+                    cargando={enviando}
+                    onClick={() =>
+                      ejecutar(() => completarParada(parada.id), "No se pudo marcar la parada.")
+                    }
+                  >
+                    Marcar visitada
+                  </Boton>
+                ) : (
+                  <span className={DATO_NUMERICO}>{parada.demanda_carga_snapshot} kg</span>
+                )
+              }
+            />
+          ))}
+        </ol>
+      </div>
 
       {ruta.estado === "planificada" && (
         <>
@@ -180,7 +200,7 @@ export function PestanaInicio({ onEditar, onArmarRuta }: Props) {
           >
             Iniciar ruta
           </Boton>
-          <div className="fila-botones">
+          <div className="mt-2 flex gap-2.5 [&>*]:flex-1">
             <Boton variante="secundario" onClick={onEditar}>
               Editar
             </Boton>
@@ -210,14 +230,14 @@ export function PestanaInicio({ onEditar, onArmarRuta }: Props) {
       )}
 
       {ruta.estado === "completada" && (
-        <div className="tarjeta-contenido">
+        <TarjetaContenido>
           <p>
             ¡Ruta completada
             {ruta.distancia_total_m != null &&
               ` — recorriste ${(ruta.distancia_total_m / 1000).toFixed(1)} km`}
             !
           </p>
-        </div>
+        </TarjetaContenido>
       )}
     </div>
   );

@@ -7,6 +7,8 @@ import type { ClientePublico } from "../../tipos/cliente";
 import type { RutaPreview } from "../../tipos/ruta";
 import { FormularioDeposito } from "../formularios/FormularioDeposito";
 import { Boton } from "../ui/Boton";
+import { TarjetaContenido } from "../ui/TarjetaContenido";
+import { TarjetaLugar } from "../ui/TarjetaLugar";
 
 interface Props {
   clientes: ClientePublico[];
@@ -23,6 +25,8 @@ type Vista = "cargando" | "deposito" | "seleccion" | "preview";
 // presencia en este objeto ES la selección (agregar/sacar una clave marca o
 // desmarca el checkbox), evita duplicar el estado en dos lugares distintos.
 type Seleccion = Record<string, number>;
+
+const DATO_NUMERICO = "font-mono text-[12.5px] font-medium text-texto-cuerpo whitespace-nowrap shrink-0";
 
 export function FlujoArmarRuta({ clientes, modoEdicion = false, onConfirmada, onCancelar }: Props) {
   const [vista, setVista] = useState<Vista>("cargando");
@@ -86,7 +90,7 @@ export function FlujoArmarRuta({ clientes, modoEdicion = false, onConfirmada, on
   }
 
   if (vista === "cargando") {
-    return <p className="texto-vacio">Cargando…</p>;
+    return <p className="px-2 py-6 text-center text-[13px] text-texto-mutado">Cargando…</p>;
   }
 
   if (vista === "deposito") {
@@ -95,37 +99,42 @@ export function FlujoArmarRuta({ clientes, modoEdicion = false, onConfirmada, on
 
   if (vista === "preview" && preview) {
     return (
-      <div className="flujo-ruta">
-        <div className="tarjeta-contenido">
-          <p className="tarjeta-contenido__titulo">
+      <div className="flex flex-col gap-4">
+        <TarjetaContenido>
+          <p className="mb-1.5 text-sm font-bold text-texto-fuerte">
             {preview.paradas.length} paradas · {(preview.distancia_total_m / 1000).toFixed(1)} km ·{" "}
             {preview.carga_total_kg} kg
           </p>
-          <p className="texto-ayuda">{preview.explicacion}</p>
+          <p className="text-[12.5px] text-texto-mutado">{preview.explicacion}</p>
           {preview.ahorro_m > 0 && (
-            <p className="texto-ahorro">
+            <p className="mt-2 text-[12.5px] font-semibold text-exito">
               Te ahorrás {(preview.ahorro_m / 1000).toFixed(1)} km recorridos comparado con
               visitarlos en el orden en que los elegiste.
             </p>
           )}
-        </div>
-        {error && <div className="error-formulario">{error}</div>}
-        <ol className="lista-lugares">
+        </TarjetaContenido>
+        {error && (
+          <div className="rounded-md border border-peligro-borde bg-peligro-tint px-3 py-2.5 text-[12.5px] text-peligro">
+            {error}
+          </div>
+        )}
+        <ol className="flex flex-col gap-2.5">
           {preview.paradas.map((parada) => (
-            <li key={parada.cliente_id} className="tarjeta-lugar">
-              <div className="tarjeta-lugar__info">
-                <p className="tarjeta-lugar__nombre">
+            <li
+              key={parada.cliente_id}
+              className="flex items-start justify-between gap-3 rounded-lg bg-blanco px-4 py-3.5 shadow-sm"
+            >
+              <div className="min-w-0 flex-1">
+                <p className="mb-0.5 text-[13.5px] font-semibold text-texto-fuerte">
                   {parada.orden + 1}. {parada.nombre}
                 </p>
-                <p className="tarjeta-lugar__direccion">{parada.direccion}</p>
+                <p className="text-[12.5px] text-texto-cuerpo">{parada.direccion}</p>
               </div>
-              <span className="dato-numerico">
-                {(parada.distancia_acumulada_m / 1000).toFixed(1)} km
-              </span>
+              <span className={DATO_NUMERICO}>{(parada.distancia_acumulada_m / 1000).toFixed(1)} km</span>
             </li>
           ))}
         </ol>
-        <div className="fila-botones">
+        <div className="flex gap-2.5 [&>*]:flex-1">
           <Boton type="button" variante="secundario" onClick={() => setVista("seleccion")}>
             Volver
           </Boton>
@@ -138,41 +147,45 @@ export function FlujoArmarRuta({ clientes, modoEdicion = false, onConfirmada, on
   }
 
   return (
-    <div className="flujo-ruta">
-      <p className="texto-ayuda">Elegí los lugares que visitás hoy y cuánto llevás a cada uno.</p>
-      {error && <div className="error-formulario">{error}</div>}
-      <ul className="lista-lugares">
+    <div className="flex flex-col gap-4">
+      <p className="text-[12.5px] text-texto-mutado">
+        Elegí los lugares que visitás hoy y cuánto llevás a cada uno.
+      </p>
+      {error && (
+        <div className="rounded-md border border-peligro-borde bg-peligro-tint px-3 py-2.5 text-[12.5px] text-peligro">
+          {error}
+        </div>
+      )}
+      <ul className="flex flex-col gap-2.5 xl:grid xl:grid-cols-2 xl:gap-3">
         {clientes.map((cliente) => {
           const marcado = cliente.id in seleccion;
           return (
-            <li key={cliente.id} className="tarjeta-lugar">
-              <label className="tarjeta-lugar__seleccion">
-                <input
-                  type="checkbox"
-                  checked={marcado}
-                  onChange={(e) => alternarSeleccion(cliente.id, e.target.checked)}
-                />
-                <div className="tarjeta-lugar__info">
-                  <p className="tarjeta-lugar__nombre">{cliente.nombre}</p>
-                  <p className="tarjeta-lugar__direccion">{cliente.direccion}</p>
-                </div>
-              </label>
-              {marcado && (
-                <input
-                  type="number"
-                  min={0}
-                  aria-label={`Carga en kg para ${cliente.nombre}`}
-                  placeholder="kg"
-                  className="campo__input campo__input--carga"
-                  value={seleccion[cliente.id]}
-                  onChange={(e) => cambiarCarga(cliente.id, Number(e.target.value))}
-                />
-              )}
-            </li>
+            <TarjetaLugar
+              key={cliente.id}
+              nombre={cliente.nombre}
+              direccion={cliente.direccion}
+              seleccionable={{
+                marcado,
+                onCambiar: (valor) => alternarSeleccion(cliente.id, valor),
+              }}
+              trailing={
+                marcado && (
+                  <input
+                    type="number"
+                    min={0}
+                    aria-label={`Carga en kg para ${cliente.nombre}`}
+                    placeholder="kg"
+                    className="h-9 w-16 shrink-0 rounded-md border border-borde-input bg-blanco px-2 text-right font-mono text-sm text-texto-fuerte outline-none transition-[border-color,box-shadow] duration-150 focus:border-primario focus:shadow-[0_0_0_3px_rgba(124,58,237,0.15)] focus-visible:outline-none"
+                    value={seleccion[cliente.id]}
+                    onChange={(e) => cambiarCarga(cliente.id, Number(e.target.value))}
+                  />
+                )
+              }
+            />
           );
         })}
       </ul>
-      <div className="fila-botones">
+      <div className="flex gap-2.5 [&>*]:flex-1">
         <Boton type="button" variante="secundario" onClick={onCancelar}>
           Cancelar
         </Boton>

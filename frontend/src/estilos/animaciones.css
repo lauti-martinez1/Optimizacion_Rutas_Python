@@ -1,0 +1,116 @@
+/* Animaciones a medida que no son expresables como utilidades de Tailwind sin
+   @theme propio. Los tiempos/easings son los mismos que tenía el CSS a mano. */
+
+/* trazar-ruta/aparecer-punto/pulso-punto NO están acá — solo los usan
+   .trazo-ruta/.punto* de abajo, nunca como utilidad Tailwind suelta en JSX,
+   así que su timing vive en un solo lugar (esas reglas) en vez de duplicado. */
+@theme {
+  --animate-aparecer-tarjeta: aparecer-tarjeta 0.55s cubic-bezier(0.16, 1, 0.3, 1) 0.05s both;
+  --animate-pulso-chip: pulso-chip 1.8s ease-in-out infinite;
+  --animate-pulso-marcador: pulso-marcador 1.8s ease-in-out infinite;
+  --animate-aparecer-fondo: aparecer-fondo 0.2s ease-out both;
+  --animate-deslizar-panel: deslizar-panel 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes trazar-ruta {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes aparecer-punto {
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes pulso-punto {
+  0% {
+    transform: scale(1);
+    opacity: 0.5;
+  }
+  100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+
+@keyframes aparecer-tarjeta {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulso-chip {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@keyframes pulso-marcador {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(18, 183, 106, 0.45), 0 1px 4px rgba(16, 24, 40, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 9px rgba(18, 183, 106, 0), 0 1px 4px rgba(16, 24, 40, 0.4);
+  }
+}
+
+@keyframes aparecer-fondo {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes deslizar-panel {
+  from {
+    transform: translateX(100%);
+  }
+}
+
+/* OverlayRuta.tsx: el trazo y sus pines animados — cada uno combina más de
+   una animación con su propio delay, no entran en una sola utilidad
+   --animate-*, así que se quedan como clases de verdad en vez de utilidades. */
+.trazo-ruta {
+  stroke-dasharray: 900;
+  stroke-dashoffset: 900;
+  animation: trazar-ruta 2.8s ease-in-out 0.15s forwards;
+}
+
+.punto {
+  opacity: 0;
+  animation: aparecer-punto 0.5s ease-out forwards;
+}
+
+.punto--inicio {
+  animation-delay: 0.15s;
+}
+
+.punto--fin {
+  animation-delay: 2.65s;
+}
+
+.punto--pulso {
+  opacity: 0;
+  animation:
+    aparecer-punto 0.5s ease-out 2.65s forwards,
+    pulso-punto 2.2s ease-out 3s infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .trazo-ruta,
+  .punto,
+  .punto--pulso {
+    animation: none;
+    opacity: 1;
+    stroke-dashoffset: 0;
+  }
+}

@@ -1,0 +1,95 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap');
+@import './animaciones.css';
+@import "tailwindcss";
+
+/* Tokens del design system (DESIGN.md) — hex/px exactos, no tocar sin revisar
+   ese documento primero. El mockup de referencia ("Active Route View.dc.html",
+   Claude Design) trae azul #2E5CFF por defecto con violeta #7C3AED como una
+   de sus 3 opciones de acento — esta app usa la opción violeta como identidad. */
+@theme {
+  /* --- Color: fondo/superficie --- */
+  --color-fondo: #E9EAEC;
+  --color-superficie: #F5F6F8;
+  --color-superficie-hundida: #EAECF0;
+  --color-blanco: #FFFFFF;
+
+  /* --- Color: marca --- */
+  --color-primario: #7C3AED;
+  --color-primario-hover: #6D28D9;
+  --color-exito: #12B76A;
+  --color-exito-tint: #ECFDF3;
+  --color-peligro: #F04438;
+  --color-peligro-tint: #FEF3F2;
+  --color-peligro-borde: #FECDCA;
+
+  /* --- Color: texto --- */
+  --color-texto-fuerte: #101828;
+  --color-texto-cuerpo: #344054;
+  --color-texto-mutado: #667085;
+  --color-texto-tenue: #98A2B3;
+
+  /* --- Color: bordes --- */
+  --color-borde: #E4E7EC;
+  --color-borde-input: #D0D5DD;
+
+  /* --- Tipografía --- */
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', monospace;
+
+  /* --- Radios --- */
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 16px;
+  --radius-pill: 999px;
+
+  /* --- Sombras --- */
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.04);
+  --shadow-md: 0 2px 6px rgba(16, 24, 40, 0.08);
+  --shadow-boton-primario: 0 4px 10px rgba(124, 58, 237, 0.24);
+  --shadow-boton-exito: 0 4px 10px rgba(18, 183, 106, 0.28);
+}
+
+@layer base {
+  html, body, #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background: var(--color-fondo);
+    color: var(--color-texto-fuerte);
+    font-family: var(--font-sans);
+  }
+
+  input::placeholder {
+    color: var(--color-texto-tenue);
+  }
+
+  a {
+    color: var(--color-primario);
+    text-decoration: none;
+  }
+
+  a:hover {
+    color: var(--color-primario-hover);
+  }
+
+  ::selection {
+    background: var(--color-primario);
+    color: var(--color-blanco);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-primario);
+    outline-offset: 2px;
+  }
+}
+
+/* CampoSelect: flechita de dropdown — un data-URI de este tamaño como valor
+   arbitrario de Tailwind sería ilegible sin ganar nada. */
+.campo-select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6' fill='none'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%2398A2B3' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+}

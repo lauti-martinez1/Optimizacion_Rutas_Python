@@ -7,6 +7,7 @@ import type { ClientePublico } from "../../tipos/cliente";
 import { SelectorUbicacion } from "../mapa/SelectorUbicacion";
 import { Boton } from "../ui/Boton";
 import { Campo } from "../ui/Campo";
+import { Formulario } from "../ui/Formulario";
 
 interface Props {
   cliente: ClientePublico | null;
@@ -39,8 +40,7 @@ export function FormularioCliente({ cliente, onGuardado, onCancelar }: Props) {
   }
 
   return (
-    <form onSubmit={manejarSubmit} className="formulario-lugar">
-      {error && <div className="error-formulario">{error}</div>}
+    <Formulario onSubmit={manejarSubmit} error={error} className="flex flex-col">
       <Campo
         etiqueta="Nombre"
         placeholder="Ej: Kiosco Don José"
@@ -71,7 +71,7 @@ export function FormularioCliente({ cliente, onGuardado, onCancelar }: Props) {
           if (direccionSugerida) setDireccion(direccionSugerida);
         }}
       />
-      <div className="fila-botones">
+      <div className="flex gap-2.5 [&>*]:flex-1">
         <Boton type="button" variante="secundario" onClick={onCancelar}>
           Cancelar
         </Boton>
@@ -79,6 +79,6 @@ export function FormularioCliente({ cliente, onGuardado, onCancelar }: Props) {
           Guardar
         </Boton>
       </div>
-    </form>
+    </Formulario>
   );
 }

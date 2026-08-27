@@ -7,6 +7,7 @@ import { useAuthStore } from "../../store/useAuthStore";
 import type { TipoVehiculo } from "../../tipos/auth";
 import { Boton } from "../ui/Boton";
 import { Campo } from "../ui/Campo";
+import { Formulario } from "../ui/Formulario";
 import { CamposCredenciales } from "./CamposCredenciales";
 import { CamposVehiculo } from "./CamposVehiculo";
 import {
@@ -46,8 +47,7 @@ export function FormularioRegistroChoferInvitado() {
   }
 
   return (
-    <form onSubmit={manejarSubmit}>
-      {error && <div className="error-formulario">{error}</div>}
+    <Formulario onSubmit={manejarSubmit} error={error}>
       <Campo
         etiqueta="Código de invitación"
         type="text"
@@ -67,6 +67,6 @@ export function FormularioRegistroChoferInvitado() {
       <Boton type="submit" cargando={enviando}>
         Unirme a la empresa
       </Boton>
-    </form>
+    </Formulario>
   );
 }

@@ -6,6 +6,7 @@ import { useEnvioFormulario } from "../../hooks/useEnvioFormulario";
 import { useAuthStore } from "../../store/useAuthStore";
 import { Boton } from "../ui/Boton";
 import { Campo } from "../ui/Campo";
+import { Formulario } from "../ui/Formulario";
 import { CamposCredenciales } from "./CamposCredenciales";
 import { VALORES_CREDENCIALES_INICIALES, validarContrasenasCoinciden } from "./datosRegistro";
 
@@ -34,8 +35,7 @@ export function FormularioRegistroEmpresa() {
   }
 
   return (
-    <form onSubmit={manejarSubmit}>
-      {error && <div className="error-formulario">{error}</div>}
+    <Formulario onSubmit={manejarSubmit} error={error}>
       <Campo
         etiqueta="Nombre de la empresa"
         type="text"
@@ -51,6 +51,6 @@ export function FormularioRegistroEmpresa() {
       <Boton type="submit" cargando={enviando}>
         Crear cuenta de empresa
       </Boton>
-    </form>
+    </Formulario>
   );
 }

@@ -6,6 +6,7 @@ import { useEnvioFormulario } from "../../hooks/useEnvioFormulario";
 import { useAuthStore } from "../../store/useAuthStore";
 import type { TipoVehiculo } from "../../tipos/auth";
 import { Boton } from "../ui/Boton";
+import { Formulario } from "../ui/Formulario";
 import { CamposCredenciales } from "./CamposCredenciales";
 import { CamposVehiculo } from "./CamposVehiculo";
 import {
@@ -43,8 +44,7 @@ export function FormularioRegistroChofer() {
   }
 
   return (
-    <form onSubmit={manejarSubmit}>
-      {error && <div className="error-formulario">{error}</div>}
+    <Formulario onSubmit={manejarSubmit} error={error}>
       <CamposCredenciales
         valores={credenciales}
         onCambiar={(campo, valor) => setCredenciales((v) => ({ ...v, [campo]: valor }))}
@@ -56,6 +56,6 @@ export function FormularioRegistroChofer() {
       <Boton type="submit" cargando={enviando}>
         Crear cuenta
       </Boton>
-    </form>
+    </Formulario>
   );
 }

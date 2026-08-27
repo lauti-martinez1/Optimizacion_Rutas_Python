@@ -7,10 +7,15 @@ import { FormularioCliente } from "../componentes/formularios/FormularioCliente"
 import { FormularioDeposito } from "../componentes/formularios/FormularioDeposito";
 import { FlujoArmarRuta } from "../componentes/rutas/FlujoArmarRuta";
 import { Boton } from "../componentes/ui/Boton";
+import { CabeceraTarjeta, TarjetaContenido, TituloTarjeta } from "../componentes/ui/TarjetaContenido";
+import { TarjetaLugar } from "../componentes/ui/TarjetaLugar";
 import type { ClientePublico } from "../tipos/cliente";
 import type { DepositoPublico } from "../tipos/deposito";
 
 type Vista = "lista" | "formulario" | "ruta" | "deposito";
+
+const ENLACE = "cursor-pointer border-none bg-transparent p-0 text-[12.5px] text-texto-mutado hover:text-texto-cuerpo";
+const ENLACE_PELIGRO = "cursor-pointer border-none bg-transparent p-0 text-[12.5px] text-peligro hover:brightness-[0.85]";
 
 interface Props {
   onRutaConfirmada: () => void;
@@ -133,24 +138,24 @@ export function PestanaLugares({
   }
 
   return (
-    <div className="pestana-lugares">
+    <div className="flex flex-col gap-4">
       {!cargando && (
-        <div className="tarjeta-contenido">
-          <div className="tarjeta-contenido__cabecera">
-            <p className="tarjeta-contenido__titulo">Mi depósito</p>
-            <button className="enlace-volver" onClick={abrirDeposito}>
+        <TarjetaContenido>
+          <CabeceraTarjeta>
+            <TituloTarjeta>Mi depósito</TituloTarjeta>
+            <button className={ENLACE} onClick={abrirDeposito}>
               {deposito ? "Editar" : "+ Agregar"}
             </button>
-          </div>
-          <p className="texto-ayuda">
+          </CabeceraTarjeta>
+          <p className="text-[12.5px] text-texto-mutado">
             {deposito
               ? `${deposito.nombre} — de acá parten y a acá vuelven tus rutas.`
               : "Todavía no marcaste de dónde salís y a dónde volvés cada día."}
           </p>
-        </div>
+        </TarjetaContenido>
       )}
 
-      <div className="fila-botones">
+      <div className="mt-2 flex gap-2.5 [&>*]:flex-1">
         <Boton variante="secundario" onClick={abrirNuevo}>
           + Agregar lugar
         </Boton>
@@ -164,33 +169,31 @@ export function PestanaLugares({
       </div>
 
       {cargando ? (
-        <p className="texto-vacio">Cargando…</p>
+        <p className="px-2 py-6 text-center text-[13px] text-texto-mutado">Cargando…</p>
       ) : clientes.length === 0 ? (
-        <p className="texto-vacio">
+        <p className="px-2 py-6 text-center text-[13px] text-texto-mutado">
           Todavía no guardaste ningún lugar. Agregá las direcciones que visitás seguido para no
           tener que cargarlas cada vez.
         </p>
       ) : (
-        <ul className="lista-lugares">
+        <ul className="flex flex-col gap-2.5 xl:grid xl:grid-cols-2 xl:gap-3">
           {clientes.map((cliente) => (
-            <li key={cliente.id} className="tarjeta-lugar">
-              <div className="tarjeta-lugar__info">
-                <p className="tarjeta-lugar__nombre">{cliente.nombre}</p>
-                <p className="tarjeta-lugar__direccion">{cliente.direccion}</p>
-                {cliente.telefono && <p className="tarjeta-lugar__telefono">{cliente.telefono}</p>}
-              </div>
-              <div className="tarjeta-lugar__acciones">
-                <button className="enlace-volver" onClick={() => abrirEdicionLugar(cliente)}>
-                  Editar
-                </button>
-                <button
-                  className="enlace-volver enlace-volver--peligro"
-                  onClick={() => manejarEliminarLugar(cliente.id)}
-                >
-                  Eliminar
-                </button>
-              </div>
-            </li>
+            <TarjetaLugar
+              key={cliente.id}
+              nombre={cliente.nombre}
+              direccion={cliente.direccion}
+              telefono={cliente.telefono}
+              trailing={
+                <div className="flex shrink-0 flex-col items-end gap-1.5">
+                  <button className={ENLACE} onClick={() => abrirEdicionLugar(cliente)}>
+                    Editar
+                  </button>
+                  <button className={ENLACE_PELIGRO} onClick={() => manejarEliminarLugar(cliente.id)}>
+                    Eliminar
+                  </button>
+                </div>
+              }
+            />
           ))}
         </ul>
       )}

@@ -7,6 +7,7 @@ import type { DepositoPublico } from "../../tipos/deposito";
 import { SelectorUbicacion } from "../mapa/SelectorUbicacion";
 import { Boton } from "../ui/Boton";
 import { Campo } from "../ui/Campo";
+import { Formulario } from "../ui/Formulario";
 
 interface Props {
   deposito?: DepositoPublico | null;
@@ -35,13 +36,12 @@ export function FormularioDeposito({ deposito = null, onGuardado, onCancelar }: 
   }
 
   return (
-    <form onSubmit={manejarSubmit} className="formulario-lugar">
-      <p className="texto-ayuda">
+    <Formulario onSubmit={manejarSubmit} error={error} className="flex flex-col">
+      <p className="text-[12.5px] text-texto-mutado">
         {deposito
           ? "Este es el punto de partida y llegada de tus rutas — tu casa, tu local, o donde arranques el día."
           : "Antes de armar tu primera ruta necesitamos saber de dónde salís y a dónde volvés — tu casa, tu local, o donde arranques el día."}
       </p>
-      {error && <div className="error-formulario">{error}</div>}
       <Campo
         etiqueta="Nombre"
         placeholder="Ej: Mi base"
@@ -57,7 +57,7 @@ export function FormularioDeposito({ deposito = null, onGuardado, onCancelar }: 
           setLongitud(lon);
         }}
       />
-      <div className="fila-botones">
+      <div className="flex gap-2.5 [&>*]:flex-1">
         <Boton type="button" variante="secundario" onClick={onCancelar}>
           Cancelar
         </Boton>
@@ -65,6 +65,6 @@ export function FormularioDeposito({ deposito = null, onGuardado, onCancelar }: 
           Guardar
         </Boton>
       </div>
-    </form>
+    </Formulario>
   );
 }
