@@ -39,16 +39,22 @@ def obtener_matriz_osrm(coordenadas: list) -> dict:
     }
 
 
-def obtener_geometria_osrm(coordenadas: list) -> list[tuple[float, float]]:
-    """Traza real (siguiendo calles) que pasa por `coordenadas` en orden —
-    para dibujar el camino en el mapa, no para calcular costos (eso lo hace
-    obtener_matriz_osrm). Devuelve puntos en (latitud, longitud), al revés
-    del GeoJSON que da OSRM, para que Leaflet los use sin transformar."""
+def obtener_geometria_osrm(coordenadas: list) -> list[list[tuple[float, float]]]:
+    """Traza real (siguiendo calles) que pasa por `coordenadas` en orden, separada
+    por tramo — un tramo por cada par de coordenadas consecutivas (depósito→parada,
+    parada→parada) — para que el mapa pueda ocultar los tramos ya recorridos a
+    medida que se completan paradas, sin pedirle a OSRM una traza por tramo (este
+    cliente sigue apuntando al servidor demo público de OSRM, con rate-limiting).
+    `steps=true` hace que OSRM ya divida la respuesta en `legs`, uno por tramo, así
+    que alcanza con un solo request. Devuelve puntos en (latitud, longitud), al
+    revés del GeoJSON que da OSRM, para que Leaflet los use sin transformar."""
     string_coordenadas = _formatear_coordenadas(coordenadas)
     url = (
         f"{settings.osrm_base_url}/route/v1/driving/{string_coordenadas}"
-        "?overview=full&geometries=geojson"
+        "?overview=full&geometries=geojson&steps=true"
     )
     datos = _pedir_osrm(url)
-    coordenadas_geojson = datos["routes"][0]["geometry"]["coordinates"]
-    return [(lat, lon) for lon, lat in coordenadas_geojson]
+    return [
+        [(lat, lon) for paso in tramo["steps"] for lon, lat in paso["geometry"]["coordinates"]]
+        for tramo in datos["routes"][0]["legs"]
+    ]

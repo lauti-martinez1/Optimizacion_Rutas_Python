@@ -29,7 +29,7 @@ export interface RutaPreview {
 }
 
 export interface GeometriaRuta {
-  puntos: [number, number][];
+  tramos: [number, number][][];
 }
 
 export interface ParadaRutaPublica {

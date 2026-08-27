@@ -111,19 +111,24 @@ export function PestanaInicio({ onEditar, onArmarRuta }: Props) {
         </p>
         {ruta.explicacion && <p className="texto-ayuda">{ruta.explicacion}</p>}
         {(ruta.estado === "planificada" || ruta.estado === "en_curso") && (
-          <div className="resumen-ruta__stats">
-            <div className="resumen-ruta__stat">
-              <span className="resumen-ruta__valor">
-                {paradasCompletadas}
-                <span className="resumen-ruta__valor-total">/{ruta.paradas.length}</span>
-              </span>
-              <span className="resumen-ruta__etiqueta">entregas completadas</span>
+          <>
+            <p className="resumen-ruta__eyebrow">Progreso del día</p>
+            <div className="resumen-ruta__stats">
+              <div className="resumen-ruta__stat">
+                <span className="resumen-ruta__valor">
+                  {paradasCompletadas}
+                  <span className="resumen-ruta__valor-total">/{ruta.paradas.length}</span>
+                </span>
+                <span className="resumen-ruta__etiqueta">entregas completadas</span>
+              </div>
+              <div className="resumen-ruta__stat resumen-ruta__stat--secundario">
+                <span className="resumen-ruta__valor resumen-ruta__valor--secundario">
+                  {cargaUsadaPct}%
+                </span>
+                <span className="resumen-ruta__etiqueta">carga</span>
+              </div>
             </div>
-            <div className="resumen-ruta__stat">
-              <span className="resumen-ruta__valor">{cargaUsadaPct}%</span>
-              <span className="resumen-ruta__etiqueta">carga del vehículo</span>
-            </div>
-          </div>
+          </>
         )}
       </div>
 

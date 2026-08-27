@@ -71,6 +71,18 @@ def planificar_ruta(
     matriz_distancias = matrices["matriz_distancias_metros"]
     demandas = [0] + [cargas_por_cliente[cliente.id] for cliente in clientes]
 
+    # Un solo vehículo, sin ventanas horarias todavía (CVRP puro) — si el solver
+    # falla, la causa casi siempre es esta y no una traza genérica de OR-Tools
+    # ayuda al chofer a entender qué hacer. Se chequea antes de llamar al solver
+    # para no depender de que agote el time_limit en un problema ya sin salida.
+    carga_total = sum(demandas)
+    if carga_total > vehiculo.capacidad_carga_kg:
+        raise ErrorPlanificacion(
+            f"La carga total de tu selección ({carga_total} kg) supera la capacidad "
+            f"de tu vehículo ({vehiculo.capacidad_carga_kg} kg) — sacá algún bulto o "
+            f"repartilo en más de una ruta."
+        )
+
     resultado = resolver_ruteo(matriz_distancias, demandas, [vehiculo.capacidad_carga_kg])
     if resultado["estado"] == "Fallo":
         raise ErrorPlanificacion(resultado["mensaje"])

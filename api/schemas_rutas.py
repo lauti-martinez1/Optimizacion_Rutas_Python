@@ -34,7 +34,7 @@ class RutaPreview(BaseModel):
 
 
 class GeometriaRuta(BaseModel):
-    puntos: list[tuple[float, float]]
+    tramos: list[list[tuple[float, float]]]
 
 
 class ParadaRutaPublica(BaseModel):

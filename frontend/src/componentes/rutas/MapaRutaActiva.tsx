@@ -12,8 +12,8 @@ const CENTRO_MENDOZA: [number, number] = [-32.8908, -68.8272];
 // los tokens del sistema y sigue el mismo código de estado que las tarjetas
 // (mismo verde que el anillo de "en curso" en la lista y el chip de estado
 // de la Ruta). Una vez completada, la parada se saca del mapa por completo
-// (ver `paradas` más abajo) en vez de pintarla — así el mapa se va limpiando
-// a medida que avanza el día en lugar de acumular marcas.
+// (ver `paradasVisibles` más abajo) en vez de pintarla — así el mapa se va
+// limpiando a medida que avanza el día en lugar de acumular marcas.
 function iconoParada(estado: ParadaRutaPublica["estado"]) {
   const tamanio = estado === "en_curso" ? 28 : 20;
   return L.divIcon({
@@ -47,12 +47,12 @@ interface Props {
 }
 
 export function MapaRutaActiva({ deposito, paradas }: Props) {
-  const [puntosCamino, setPuntosCamino] = useState<[number, number][]>([]);
+  const [tramos, setTramos] = useState<[number, number][][]>([]);
 
   useEffect(() => {
     obtenerGeometriaRutaActiva()
-      .then((geometria) => setPuntosCamino(geometria.puntos))
-      .catch(() => setPuntosCamino([]));
+      .then((geometria) => setTramos(geometria.tramos))
+      .catch(() => setTramos([]));
   }, []);
 
   // Una parada completada se saca del mapa (pin y bounds) — ver el comentario
@@ -66,6 +66,13 @@ export function MapaRutaActiva({ deposito, paradas }: Props) {
       parada.longitud_snapshot,
     ]),
   ];
+
+  // tramos[i] es el tramo que llega a paradas[i] (depósito→paradas[0],
+  // paradas[0]→paradas[1], …) — al completar una parada se oculta el tramo
+  // que llegaba a ella para ir despejando el trazo violeta, no solo el pin.
+  // El último tramo (vuelta al depósito) no tiene parada asociada y queda
+  // siempre visible.
+  const tramosVisibles = tramos.filter((_, indice) => paradas[indice]?.estado !== "completada");
 
   const indiceProxima = paradas.findIndex((parada) => parada.estado === "en_curso");
   const proximaParada = indiceProxima === -1 ? undefined : paradas[indiceProxima];
@@ -82,14 +89,14 @@ export function MapaRutaActiva({ deposito, paradas }: Props) {
 
   return (
     <div className="mapa-ruta-activa">
-      <MapContainer center={CENTRO_MENDOZA} zoom={13} style={{ height: "260px" }}>
+      <MapContainer center={CENTRO_MENDOZA} zoom={13} style={{ height: "280px" }}>
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        {puntosCamino.length > 0 && (
+        {tramosVisibles.length > 0 && (
           <Polyline
-            positions={puntosCamino}
+            positions={tramosVisibles}
             pathOptions={{ color: "#7C3AED", weight: 3, opacity: 0.55 }}
           />
         )}
@@ -103,23 +110,22 @@ export function MapaRutaActiva({ deposito, paradas }: Props) {
         ))}
         <AjustarVista puntos={puntosVisibles} />
       </MapContainer>
+
+      {proximaParada && (
+        <a
+          className="mapa-ruta-activa__navegar-pill"
+          href={`https://www.google.com/maps/dir/?api=1&origin=${origenNavegacion.latitud},${origenNavegacion.longitud}&destination=${proximaParada.latitud_snapshot},${proximaParada.longitud_snapshot}`}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Ir con Maps
+        </a>
+      )}
+
       {proximaParada && (
         <div className="mapa-ruta-activa__proxima">
           <span className="mapa-ruta-activa__punto" />
-          <div className="mapa-ruta-activa__proxima-info">
-            <p className="mapa-ruta-activa__proxima-nombre">{proximaParada.nombre_snapshot}</p>
-            <p className="mapa-ruta-activa__proxima-direccion">
-              {proximaParada.direccion_snapshot}
-            </p>
-          </div>
-          <a
-            className="mapa-ruta-activa__navegar"
-            href={`https://www.google.com/maps/dir/?api=1&origin=${origenNavegacion.latitud},${origenNavegacion.longitud}&destination=${proximaParada.latitud_snapshot},${proximaParada.longitud_snapshot}`}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Ir con Maps
-          </a>
+          <p className="mapa-ruta-activa__proxima-direccion">{proximaParada.direccion_snapshot}</p>
         </div>
       )}
     </div>

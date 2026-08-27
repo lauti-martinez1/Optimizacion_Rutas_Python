@@ -1,3 +1,5 @@
+from itertools import pairwise
+
 import pytest
 
 from tests.conftest import payload_chofer
@@ -47,7 +49,12 @@ def osrm_falso(monkeypatch):
 
 
 def _geometria_sintetica(coordenadas):
-    return [(c["latitud"], c["longitud"]) for c in coordenadas]
+    # Un tramo por cada par de coordenadas consecutivas, igual que la forma real
+    # de obtener_geometria_osrm (steps=true separa la traza por leg).
+    return [
+        [(origen["latitud"], origen["longitud"]), (destino["latitud"], destino["longitud"])]
+        for origen, destino in pairwise(coordenadas)
+    ]
 
 
 @pytest.fixture
@@ -307,4 +314,25 @@ def test_geometria_ruta_activa(client, osrm_falso, osrm_geometria_falsa):
 
     respuesta = client.get(f"{BASE_RUTAS}/activa/geometria")
     assert respuesta.status_code == 200
-    assert len(respuesta.json()["puntos"]) >= 2
+    tramos = respuesta.json()["tramos"]
+    # depósito→parada→depósito: 2 tramos.
+    assert len(tramos) == 2
+    assert all(len(tramo) >= 2 for tramo in tramos)
+
+
+def test_optimizar_excede_capacidad_da_mensaje_especifico(client, osrm_falso):
+    cliente1, cliente2 = _armar_chofer_con_lugares(client)
+
+    respuesta = client.post(
+        f"{BASE_RUTAS}/optimizar",
+        json={
+            "paradas": [
+                {"cliente_id": cliente1["id"], "carga_kg": 300},
+                {"cliente_id": cliente2["id"], "carga_kg": 300},
+            ]
+        },
+    )
+    assert respuesta.status_code == 400
+    mensaje = respuesta.json()["detail"].lower()
+    assert "capacidad" in mensaje
+    assert "600" in mensaje

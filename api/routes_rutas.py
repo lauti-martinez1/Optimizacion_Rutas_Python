@@ -175,9 +175,9 @@ def geometria_ruta_activa(
         + [{"latitud": ruta.deposito.latitud, "longitud": ruta.deposito.longitud}]
     )
     try:
-        puntos = obtener_geometria_osrm(coordenadas)
+        tramos = obtener_geometria_osrm(coordenadas)
     except Exception as error:
         raise HTTPException(
             status_code=502, detail=f"No se pudo trazar el camino: {error}"
         ) from error
-    return schemas.GeometriaRuta(puntos=puntos)
+    return schemas.GeometriaRuta(tramos=tramos)

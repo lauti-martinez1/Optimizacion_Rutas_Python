@@ -1,0 +1,202 @@
+/* Pantallas de login/registro — el resto de la app (post-login) vive en
+   componentes.css junto con las primitivas compartidas (.boton, .campo,
+   .error-formulario, .enlace-volver) que también usan estas pantallas. */
+
+.pagina-auth {
+  position: relative;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 20px;
+  background-color: var(--color-fondo);
+  background-image:
+    linear-gradient(180deg, rgba(16, 24, 40, 0.32) 0%, rgba(16, 24, 40, 0.08) 32%, rgba(16, 24, 40, 0.1) 62%, rgba(16, 24, 40, 0.55) 100%),
+    linear-gradient(135deg, rgba(var(--color-primario-rgb), 0.28) 0%, rgba(var(--color-primario-rgb), 0) 55%),
+    url('/img/fondo-auth.jpg');
+  background-size: cover;
+  background-position: center;
+  overflow: hidden;
+}
+
+.pagina-auth__overlay-ruta {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.pagina-auth__overlay-ruta path {
+  stroke-dasharray: 900;
+  stroke-dashoffset: 900;
+  animation: trazar-ruta 2.8s ease-in-out 0.15s forwards;
+}
+
+.pagina-auth__overlay-ruta circle.punto {
+  opacity: 0;
+  animation: aparecer-punto 0.5s ease-out forwards;
+}
+
+.pagina-auth__overlay-ruta circle.punto--inicio {
+  animation-delay: 0.15s;
+}
+
+.pagina-auth__overlay-ruta circle.punto--fin {
+  animation-delay: 2.65s;
+}
+
+.pagina-auth__overlay-ruta circle.punto--pulso {
+  opacity: 0;
+  animation:
+    aparecer-punto 0.5s ease-out 2.65s forwards,
+    pulso-punto 2.2s ease-out 3s infinite;
+}
+
+@keyframes trazar-ruta {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes aparecer-punto {
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes pulso-punto {
+  0% {
+    transform: scale(1);
+    opacity: 0.5;
+  }
+  100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+
+.pagina-auth__contenido {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  animation: aparecer-tarjeta 0.55s cubic-bezier(0.16, 1, 0.3, 1) 0.05s both;
+}
+
+@keyframes aparecer-tarjeta {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.tarjeta-auth {
+  width: 100%;
+  max-width: 400px;
+  background: rgba(245, 246, 248, 0.86);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: var(--radio-xl);
+  box-shadow: 0 24px 48px -12px rgba(16, 24, 40, 0.35);
+  padding: 32px 28px;
+}
+
+.tarjeta-auth__titulo {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--color-texto-fuerte);
+  margin: 0 0 4px;
+}
+
+.tarjeta-auth__subtitulo {
+  font-size: 13px;
+  color: var(--color-texto-mutado);
+  margin: 0 0 24px;
+}
+
+.selector-tipo-cuenta {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 24px;
+}
+
+.selector-tipo-cuenta__opcion {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+  background: var(--color-blanco);
+  border: 1.5px solid var(--color-borde);
+  border-radius: var(--radio-lg);
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+
+.selector-tipo-cuenta__opcion:hover {
+  border-color: var(--color-primario);
+  transform: translateY(-1px);
+}
+
+.selector-tipo-cuenta__opcion--activa {
+  border-color: var(--color-primario);
+  background: rgba(var(--color-primario-rgb), 0.04);
+}
+
+.selector-tipo-cuenta__titulo {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--color-texto-fuerte);
+}
+
+.selector-tipo-cuenta__descripcion {
+  font-size: 11.5px;
+  color: var(--color-texto-mutado);
+}
+
+.pie-auth {
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--color-blanco);
+  margin-top: 20px;
+  padding: 8px 16px;
+  border-radius: var(--radio-pill);
+  background: rgba(16, 24, 40, 0.34);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.pie-auth a {
+  color: var(--color-blanco);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-color: rgba(255, 255, 255, 0.5);
+}
+
+.pie-auth a:hover {
+  text-decoration-color: var(--color-blanco);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pagina-auth__overlay-ruta path,
+  .pagina-auth__overlay-ruta circle.punto,
+  .pagina-auth__overlay-ruta circle.punto--pulso,
+  .pagina-auth__contenido {
+    animation: none;
+    opacity: 1;
+    stroke-dashoffset: 0;
+    transform: none;
+  }
+}

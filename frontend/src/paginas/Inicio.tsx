@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { Boton } from "../componentes/ui/Boton";
+import { PanelPerfil } from "../componentes/ui/PanelPerfil";
 import { useAuthStore } from "../store/useAuthStore";
 import { PestanaInicio } from "./PestanaInicio";
 import { PestanaLugares } from "./PestanaLugares";
@@ -14,6 +14,7 @@ export function Inicio() {
   const cerrarSesion = useAuthStore((estado) => estado.cerrarSesion);
   const [pestana, setPestana] = useState<Pestana>("inicio");
   const [abrirEdicionRuta, setAbrirEdicionRuta] = useState(false);
+  const [panelPerfilAbierto, setPanelPerfilAbierto] = useState(false);
 
   // La gestión de lugares es para el chofer particular: arma su propia ruta
   // cliente por cliente. Un chofer de empresa recibe la ruta ya asignada por
@@ -44,10 +45,21 @@ export function Inicio() {
                 : ""}
           </p>
         </div>
-        <Boton variante="secundario" onClick={manejarLogout}>
-          Salir
-        </Boton>
+        <button
+          type="button"
+          className="cabecera-app__avatar"
+          onClick={() => setPanelPerfilAbierto(true)}
+          aria-label="Mi perfil"
+        >
+          {usuario?.nombre_completo.charAt(0).toUpperCase()}
+        </button>
       </header>
+
+      <PanelPerfil
+        abierto={panelPerfilAbierto}
+        onCerrar={() => setPanelPerfilAbierto(false)}
+        onCerrarSesion={manejarLogout}
+      />
 
       {esChoferParticular && (
         <nav className="pestanas">
