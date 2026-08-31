@@ -5,7 +5,7 @@ import { listarDepositos } from "../api/depositos";
 import { obtenerRutaActiva } from "../api/rutas";
 import { FormularioCliente } from "../componentes/formularios/FormularioCliente";
 import { FormularioDeposito } from "../componentes/formularios/FormularioDeposito";
-import { FlujoArmarRuta } from "../componentes/rutas/FlujoArmarRuta";
+import { FlujoArmarRuta, type SeleccionInicial } from "../componentes/rutas/FlujoArmarRuta";
 import { Boton } from "../componentes/ui/Boton";
 import { Enlace } from "../componentes/ui/Enlace";
 import { CabeceraTarjeta, TarjetaContenido, TituloTarjeta } from "../componentes/ui/TarjetaContenido";
@@ -16,17 +16,23 @@ import type { DepositoPublico } from "../tipos/deposito";
 
 type Vista = "lista" | "formulario" | "ruta" | "deposito";
 
+/** Señal externa para saltar directo a "armar ruta" con una acción ya
+ * decidida — desde EscritorioChofer, nunca derivada de un valor local. Las
+ * dos variantes comparten la misma forma de "acción pendiente que se
+ * consume una vez y se limpia" en vez de vivir como dos pares de props
+ * paralelos con el mismo ciclo de vida. */
+export type AccionPendiente = { tipo: "editar" } | ({ tipo: "copiar" } & SeleccionInicial);
+
 interface Props {
   onRutaConfirmada: () => void;
-  /** true: Inicio nos pide saltar directo a editar la ruta de hoy. */
-  abrirEdicionRuta?: boolean;
-  onAbrioEdicionRuta?: () => void;
+  accionPendiente?: AccionPendiente;
+  onAccionPendienteConsumida?: () => void;
 }
 
 export function PestanaLugares({
   onRutaConfirmada,
-  abrirEdicionRuta = false,
-  onAbrioEdicionRuta,
+  accionPendiente,
+  onAccionPendienteConsumida,
 }: Props) {
   const [clientes, setClientes] = useState<ClientePublico[]>([]);
   const [deposito, setDeposito] = useState<DepositoPublico | null>(null);
@@ -34,6 +40,14 @@ export function PestanaLugares({
   const [cargando, setCargando] = useState(true);
   const [vista, setVista] = useState<Vista>("lista");
   const [modoEdicionRuta, setModoEdicionRuta] = useState(false);
+  // Snapshot local de la selección a copiar, tomado en el mismo efecto que
+  // consume accionPendiente — leer accionPendiente de nuevo en el render de
+  // "ruta" no alcanza: onAccionPendienteConsumida limpia esa prop en el
+  // mismo tick en que este efecto cambia `vista`, así que para cuando
+  // FlujoArmarRuta llega a montarse la prop ya volvió a estar vacía.
+  const [seleccionInicial, setSeleccionInicial] = useState<SeleccionInicial | undefined>(
+    undefined,
+  );
   const [clienteEditando, setClienteEditando] = useState<ClientePublico | null>(null);
 
   async function recargar() {
@@ -55,15 +69,24 @@ export function PestanaLugares({
   }, []);
 
   useEffect(() => {
-    // Sincroniza con una señal externa real (Inicio.tsx pidiendo saltar a
-    // edición desde otra pestaña), no un valor derivable en el render.
-    if (abrirEdicionRuta) {
-      // oxlint-disable-next-line react/set-state-in-effect
-      setModoEdicionRuta(true);
-      setVista("ruta");
-      onAbrioEdicionRuta?.();
-    }
-  }, [abrirEdicionRuta, onAbrioEdicionRuta]);
+    // Sincroniza con una señal externa real (EscritorioChofer pidiendo
+    // saltar a "armar ruta" con una acción ya decidida), no un valor
+    // derivable en el render.
+    if (!accionPendiente) return;
+    const esCopia = accionPendiente.tipo === "copiar";
+    // oxlint-disable-next-line react/set-state-in-effect
+    setModoEdicionRuta(!esCopia);
+    setSeleccionInicial(
+      esCopia
+        ? {
+            seleccion: accionPendiente.seleccion,
+            usaVentanasHorarias: accionPendiente.usaVentanasHorarias,
+          }
+        : undefined,
+    );
+    setVista("ruta");
+    onAccionPendienteConsumida?.();
+  }, [accionPendiente, onAccionPendienteConsumida]);
 
   function abrirNuevo() {
     setClienteEditando(null);
@@ -77,6 +100,7 @@ export function PestanaLugares({
 
   function abrirArmarRutaNueva() {
     setModoEdicionRuta(false);
+    setSeleccionInicial(undefined);
     setVista("ruta");
   }
 
@@ -120,6 +144,7 @@ export function PestanaLugares({
       <FlujoArmarRuta
         clientes={clientes}
         modoEdicion={modoEdicionRuta}
+        seleccionInicial={modoEdicionRuta ? undefined : seleccionInicial}
         onConfirmada={manejarRutaGuardada}
         onCancelar={() => setVista("lista")}
       />

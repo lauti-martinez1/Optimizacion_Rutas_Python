@@ -1,10 +1,12 @@
+import type { InputHTMLAttributes } from "react";
 import { useEffect, useState } from "react";
 
 import { listarDepositos } from "../../api/depositos";
 import { confirmarRuta, editarRuta, obtenerRutaActiva, optimizarRuta } from "../../api/rutas";
 import { useEnvioFormulario } from "../../hooks/useEnvioFormulario";
 import type { ClientePublico } from "../../tipos/cliente";
-import type { RutaPreview } from "../../tipos/ruta";
+import type { ParadaSeleccionada, RutaPreview } from "../../tipos/ruta";
+import { hhMmAMinutos, minutosAHhMm } from "../../utilidades/horario";
 import { FormularioDeposito } from "../formularios/FormularioDeposito";
 import { Boton } from "../ui/Boton";
 import { DatoNumerico } from "../ui/DatoNumerico";
@@ -13,25 +15,75 @@ import { TarjetaContenido } from "../ui/TarjetaContenido";
 import { TarjetaLugar } from "../ui/TarjetaLugar";
 import { TextoVacio } from "../ui/TextoVacio";
 
+interface DatosParada {
+  carga_kg: number;
+  unidades: number;
+  ventana_inicio: number | null;
+  ventana_fin: number | null;
+}
+
+// cliente_id -> lo que se lleva/necesita ahí hoy. La clave de presencia en
+// este objeto ES la selección (agregar/sacar una clave marca o desmarca el
+// checkbox), evita duplicar el estado en dos lugares distintos.
+export type Seleccion = Record<string, DatosParada>;
+
+export interface SeleccionInicial {
+  seleccion: Seleccion;
+  usaVentanasHorarias: boolean;
+}
+
 interface Props {
   clientes: ClientePublico[];
   /** true: reabre la ruta planificada de hoy con su selección precargada y
    * al confirmar la reemplaza (PUT), en vez de crear una nueva (POST). */
   modoEdicion?: boolean;
+  /** Prellena la selección (ej. "usar de nuevo" desde el historial) sin
+   * abrir el modo edición — arma una ruta nueva, no reemplaza ninguna. */
+  seleccionInicial?: SeleccionInicial;
   onConfirmada: () => void;
   onCancelar: () => void;
 }
 
 type Vista = "cargando" | "deposito" | "seleccion" | "preview";
 
-// cliente_id -> carga en kg de lo que se lleva ahí hoy. La clave de
-// presencia en este objeto ES la selección (agregar/sacar una clave marca o
-// desmarca el checkbox), evita duplicar el estado en dos lugares distintos.
-type Seleccion = Record<string, number>;
+const DATOS_VACIOS: DatosParada = {
+  carga_kg: 0,
+  unidades: 0,
+  ventana_inicio: null,
+  ventana_fin: null,
+};
 
-export function FlujoArmarRuta({ clientes, modoEdicion = false, onConfirmada, onCancelar }: Props) {
+const CLASE_INPUT_CHICO =
+  "h-9 w-[68px] shrink-0 rounded-md border border-borde-input bg-blanco px-2 text-right font-mono text-[13px] text-texto-fuerte outline-none transition-[border-color,box-shadow] duration-150 focus:border-primario focus:shadow-[0_0_0_3px_rgba(124,58,237,0.15)] focus-visible:outline-none";
+
+/** Input chico con su etiqueta siempre visible arriba — el placeholder no
+ * alcanza acá porque el valor nunca queda vacío (arranca en 0), así que
+ * "kg"/"unid." nunca se llegaban a ver: quedaban 4 casilleros con "0" sin
+ * ninguna pista de qué era cada uno. */
+function CampoChico({
+  etiqueta,
+  ...inputProps
+}: { etiqueta: string } & InputHTMLAttributes<HTMLInputElement>) {
+  return (
+    <label className="flex flex-col items-center gap-1">
+      <span className="text-[9px] font-bold tracking-wide text-texto-tenue uppercase">
+        {etiqueta}
+      </span>
+      <input className={CLASE_INPUT_CHICO} {...inputProps} />
+    </label>
+  );
+}
+
+export function FlujoArmarRuta({
+  clientes,
+  modoEdicion = false,
+  seleccionInicial,
+  onConfirmada,
+  onCancelar,
+}: Props) {
   const [vista, setVista] = useState<Vista>("cargando");
   const [seleccion, setSeleccion] = useState<Seleccion>({});
+  const [usaVentanasHorarias, setUsaVentanasHorarias] = useState(false);
   const [preview, setPreview] = useState<RutaPreview | null>(null);
   const { error, enviando, enviar } = useEnvioFormulario();
 
@@ -42,23 +94,36 @@ export function FlujoArmarRuta({ clientes, modoEdicion = false, onConfirmada, on
       obtenerRutaActiva().then((ruta) => {
         const seleccionActual: Seleccion = {};
         for (const parada of ruta?.paradas ?? []) {
-          seleccionActual[parada.cliente_id] = parada.demanda_carga_snapshot;
+          seleccionActual[parada.cliente_id] = {
+            carga_kg: parada.demanda_carga_snapshot,
+            unidades: parada.unidades_snapshot,
+            ventana_inicio: parada.ventana_inicio_snapshot,
+            ventana_fin: parada.ventana_fin_snapshot,
+          };
         }
         setSeleccion(seleccionActual);
+        setUsaVentanasHorarias(ruta?.usa_ventanas_horarias ?? false);
         setVista("seleccion");
       });
       return;
     }
+    if (seleccionInicial) {
+      setSeleccion(seleccionInicial.seleccion);
+      setUsaVentanasHorarias(seleccionInicial.usaVentanasHorarias);
+    }
     listarDepositos().then((depositos) => {
       setVista(depositos.length > 0 ? "seleccion" : "deposito");
     });
+    // seleccionInicial es un valor de una sola vez al montar (viene de "usar
+    // de nuevo" en el historial) — no hace falta reaccionar a que cambie.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [modoEdicion]);
 
   function alternarSeleccion(clienteId: string, marcado: boolean) {
     setSeleccion((actual) => {
       const siguiente = { ...actual };
       if (marcado) {
-        siguiente[clienteId] = actual[clienteId] ?? 0;
+        siguiente[clienteId] = actual[clienteId] ?? DATOS_VACIOS;
       } else {
         delete siguiente[clienteId];
       }
@@ -66,17 +131,26 @@ export function FlujoArmarRuta({ clientes, modoEdicion = false, onConfirmada, on
     });
   }
 
-  function cambiarCarga(clienteId: string, cargaKg: number) {
-    setSeleccion((actual) => ({ ...actual, [clienteId]: cargaKg }));
+  function cambiarDatos(clienteId: string, cambios: Partial<DatosParada>) {
+    setSeleccion((actual) => ({
+      ...actual,
+      [clienteId]: { ...(actual[clienteId] ?? DATOS_VACIOS), ...cambios },
+    }));
   }
 
-  function paradasSeleccionadas() {
-    return Object.entries(seleccion).map(([cliente_id, carga_kg]) => ({ cliente_id, carga_kg }));
+  function paradasSeleccionadas(): ParadaSeleccionada[] {
+    return Object.entries(seleccion).map(([cliente_id, datos]) => ({
+      cliente_id,
+      ...datos,
+    }));
   }
 
   function manejarOptimizar() {
     enviar(async () => {
-      const resultado = await optimizarRuta({ paradas: paradasSeleccionadas() });
+      const resultado = await optimizarRuta({
+        paradas: paradasSeleccionadas(),
+        usa_ventanas_horarias: usaVentanasHorarias,
+      });
       setPreview(resultado);
       setVista("preview");
     }, "No se pudo optimizar la ruta.");
@@ -85,7 +159,7 @@ export function FlujoArmarRuta({ clientes, modoEdicion = false, onConfirmada, on
   function manejarConfirmar() {
     enviar(async () => {
       const guardar = modoEdicion ? editarRuta : confirmarRuta;
-      await guardar({ paradas: paradasSeleccionadas() });
+      await guardar({ paradas: paradasSeleccionadas(), usa_ventanas_horarias: usaVentanasHorarias });
       onConfirmada();
     }, "No se pudo guardar la ruta.");
   }
@@ -127,7 +201,14 @@ export function FlujoArmarRuta({ clientes, modoEdicion = false, onConfirmada, on
                 </p>
                 <p className="text-[12.5px] text-texto-cuerpo">{parada.direccion}</p>
               </div>
-              <DatoNumerico>{(parada.distancia_acumulada_m / 1000).toFixed(1)} km</DatoNumerico>
+              <div className="flex shrink-0 flex-col items-end gap-0.5">
+                <DatoNumerico>{(parada.distancia_acumulada_m / 1000).toFixed(1)} km</DatoNumerico>
+                {usaVentanasHorarias && parada.hora_estimada_llegada != null && (
+                  <DatoNumerico className="text-texto-tenue">
+                    llega {minutosAHhMm(parada.hora_estimada_llegada)}
+                  </DatoNumerico>
+                )}
+              </div>
             </li>
           ))}
         </ol>
@@ -148,10 +229,22 @@ export function FlujoArmarRuta({ clientes, modoEdicion = false, onConfirmada, on
       <p className="text-[12.5px] text-texto-mutado">
         Elegí los lugares que visitás hoy y cuánto llevás a cada uno.
       </p>
+      <label className="flex cursor-pointer items-center gap-2.5 rounded-lg bg-blanco px-4 py-3 shadow-sm">
+        <input
+          type="checkbox"
+          checked={usaVentanasHorarias}
+          onChange={(e) => setUsaVentanasHorarias(e.target.checked)}
+          className="h-[18px] w-[18px] shrink-0 cursor-pointer accent-primario"
+        />
+        <span className="text-[13px] font-semibold text-texto-fuerte">
+          Usar ventanas horarias para esta ruta
+        </span>
+      </label>
       {error && <BannerError>{error}</BannerError>}
       <ul className="flex flex-col gap-2.5 xl:grid xl:grid-cols-2 xl:gap-3">
         {clientes.map((cliente) => {
           const marcado = cliente.id in seleccion;
+          const datos = seleccion[cliente.id] ?? DATOS_VACIOS;
           return (
             <TarjetaLugar
               key={cliente.id}
@@ -163,15 +256,50 @@ export function FlujoArmarRuta({ clientes, modoEdicion = false, onConfirmada, on
               }}
               trailing={
                 marcado && (
-                  <input
-                    type="number"
-                    min={0}
-                    aria-label={`Carga en kg para ${cliente.nombre}`}
-                    placeholder="kg"
-                    className="h-9 w-16 shrink-0 rounded-md border border-borde-input bg-blanco px-2 text-right font-mono text-sm text-texto-fuerte outline-none transition-[border-color,box-shadow] duration-150 focus:border-primario focus:shadow-[0_0_0_3px_rgba(124,58,237,0.15)] focus-visible:outline-none"
-                    value={seleccion[cliente.id]}
-                    onChange={(e) => cambiarCarga(cliente.id, Number(e.target.value))}
-                  />
+                  <div className="flex shrink-0 flex-wrap items-start justify-end gap-x-3 gap-y-2">
+                    <div className="flex gap-1.5">
+                      <CampoChico
+                        etiqueta="Kg"
+                        type="number"
+                        min={0}
+                        inputMode="numeric"
+                        aria-label={`Carga en kg para ${cliente.nombre}`}
+                        value={datos.carga_kg}
+                        onChange={(e) => cambiarDatos(cliente.id, { carga_kg: Number(e.target.value) })}
+                      />
+                      <CampoChico
+                        etiqueta="Bultos"
+                        type="number"
+                        min={0}
+                        inputMode="numeric"
+                        aria-label={`Unidades para ${cliente.nombre}`}
+                        value={datos.unidades}
+                        onChange={(e) => cambiarDatos(cliente.id, { unidades: Number(e.target.value) })}
+                      />
+                    </div>
+                    {usaVentanasHorarias && (
+                      <div className="flex gap-1.5">
+                        <CampoChico
+                          etiqueta="Desde"
+                          type="time"
+                          aria-label={`Hora desde para ${cliente.nombre}`}
+                          value={datos.ventana_inicio != null ? minutosAHhMm(datos.ventana_inicio) : ""}
+                          onChange={(e) =>
+                            cambiarDatos(cliente.id, { ventana_inicio: hhMmAMinutos(e.target.value) })
+                          }
+                        />
+                        <CampoChico
+                          etiqueta="Hasta"
+                          type="time"
+                          aria-label={`Hora hasta para ${cliente.nombre}`}
+                          value={datos.ventana_fin != null ? minutosAHhMm(datos.ventana_fin) : ""}
+                          onChange={(e) =>
+                            cambiarDatos(cliente.id, { ventana_fin: hhMmAMinutos(e.target.value) })
+                          }
+                        />
+                      </div>
+                    )}
+                  </div>
                 )
               }
             />

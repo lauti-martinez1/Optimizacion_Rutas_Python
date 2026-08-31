@@ -1,15 +1,20 @@
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from api import schemas_rutas as schemas
 from api.dependencies import get_db, obtener_usuario_actual, requiere_chofer_independiente
 from api.schemas_auth import MensajeResponse
 from db import crud
-from db.modelos import EstadoParada, EstadoRuta, Ruta, Usuario
-from routing.planificador import ErrorPlanificacion, ResultadoPlanificacion, planificar_ruta
+from db.modelos import EstadoParada, EstadoRuta, Ruta, TipoProblema, Usuario
+from routing.planificador import (
+    ErrorPlanificacion,
+    ResultadoPlanificacion,
+    SeleccionParada,
+    planificar_ruta,
+)
 from services.osrm_client import obtener_geometria_osrm
 
 router = APIRouter(prefix="/api/v1/rutas", tags=["Rutas"])
@@ -19,8 +24,26 @@ def _hoy():
     return datetime.now(UTC).date()
 
 
-def _cargas_por_cliente(datos: schemas.OptimizarRutaRequest) -> dict[uuid.UUID, int]:
-    return {parada.cliente_id: parada.carga_kg for parada in datos.paradas}
+def _selecciones(datos: schemas.OptimizarRutaRequest) -> list[SeleccionParada]:
+    return [
+        SeleccionParada(
+            cliente_id=parada.cliente_id,
+            carga_kg=parada.carga_kg,
+            unidades=parada.unidades,
+            ventana_inicio=parada.ventana_inicio,
+            ventana_fin=parada.ventana_fin,
+        )
+        for parada in datos.paradas
+    ]
+
+
+def _planificar(db: Session, usuario: Usuario, datos: schemas.OptimizarRutaRequest):
+    try:
+        return planificar_ruta(
+            db, usuario, _selecciones(datos), usa_ventanas_horarias=datos.usa_ventanas_horarias
+        )
+    except ErrorPlanificacion as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
 
 
 def _preview(resultado: ResultadoPlanificacion) -> schemas.RutaPreview:
@@ -32,7 +55,11 @@ def _preview(resultado: ResultadoPlanificacion) -> schemas.RutaPreview:
                 direccion=parada.cliente.direccion,
                 orden=parada.orden,
                 carga_kg=parada.carga_kg,
+                unidades=parada.unidades,
                 distancia_acumulada_m=parada.distancia_acumulada_m,
+                ventana_inicio=parada.ventana_inicio,
+                ventana_fin=parada.ventana_fin,
+                hora_estimada_llegada=parada.hora_estimada_llegada,
             )
             for parada in resultado.paradas
         ],
@@ -41,6 +68,8 @@ def _preview(resultado: ResultadoPlanificacion) -> schemas.RutaPreview:
         distancia_sin_optimizar_m=resultado.distancia_sin_optimizar_m,
         ahorro_m=resultado.distancia_sin_optimizar_m - resultado.distancia_total_m,
         explicacion=resultado.explicacion,
+        usa_ventanas_horarias=resultado.usa_ventanas_horarias,
+        hora_fin_estimada_min=resultado.hora_fin_estimada_min,
     )
 
 
@@ -53,12 +82,11 @@ def _crear_ruta_desde_resultado(
         vehiculo=resultado.vehiculo,
         deposito=resultado.deposito,
         fecha=_hoy(),
+        tipo_problema=TipoProblema.VRPTW if resultado.usa_ventanas_horarias else TipoProblema.CVRP,
         distancia_total_m=resultado.distancia_total_m,
         explicacion=resultado.explicacion,
-        paradas=[
-            {"cliente": parada.cliente, "orden": parada.orden, "carga_kg": parada.carga_kg}
-            for parada in resultado.paradas
-        ],
+        hora_fin_estimada_min=resultado.hora_fin_estimada_min,
+        paradas=resultado.paradas,
     )
 
 
@@ -75,10 +103,7 @@ def optimizar_ruta(
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(requiere_chofer_independiente),
 ):
-    try:
-        resultado = planificar_ruta(db, usuario, _cargas_por_cliente(datos))
-    except ErrorPlanificacion as error:
-        raise HTTPException(status_code=400, detail=str(error)) from error
+    resultado = _planificar(db, usuario, datos)
     return _preview(resultado)
 
 
@@ -90,10 +115,7 @@ def confirmar_ruta(
 ):
     if crud.obtener_ruta_activa(db, usuario.id, _hoy()) is not None:
         raise HTTPException(status_code=409, detail="Ya tenés una ruta activa para hoy.")
-    try:
-        resultado = planificar_ruta(db, usuario, _cargas_por_cliente(datos))
-    except ErrorPlanificacion as error:
-        raise HTTPException(status_code=400, detail=str(error)) from error
+    resultado = _planificar(db, usuario, datos)
     return _crear_ruta_desde_resultado(db, usuario, resultado)
 
 
@@ -111,10 +133,7 @@ def editar_ruta_activa(
     if ruta_actual.estado != EstadoRuta.PLANIFICADA:
         raise HTTPException(status_code=409, detail="Esta ruta ya arrancó, no se puede editar.")
 
-    try:
-        resultado = planificar_ruta(db, usuario, _cargas_por_cliente(datos))
-    except ErrorPlanificacion as error:
-        raise HTTPException(status_code=400, detail=str(error)) from error
+    resultado = _planificar(db, usuario, datos)
 
     crud.cancelar_ruta(db, ruta_actual)
     return _crear_ruta_desde_resultado(db, usuario, resultado)
@@ -181,3 +200,39 @@ def geometria_ruta_activa(
             status_code=502, detail=f"No se pudo trazar el camino: {error}"
         ) from error
     return schemas.GeometriaRuta(tramos=tramos)
+
+
+@router.get("/historial", response_model=list[schemas.RutaHistorialItem])
+def historial_rutas(
+    desde: date = Query(...),
+    hasta: date = Query(...),
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(requiere_chofer_independiente),
+):
+    rutas = crud.listar_rutas_historial(db, usuario.id, desde, hasta)
+    return [
+        schemas.RutaHistorialItem(
+            id=ruta.id,
+            fecha=ruta.fecha,
+            estado=ruta.estado,
+            tipo_problema=ruta.tipo_problema,
+            distancia_total_m=ruta.distancia_total_m,
+            paradas_total=len(ruta.paradas),
+            paradas_completadas=sum(
+                1 for parada in ruta.paradas if parada.estado == EstadoParada.COMPLETADA
+            ),
+        )
+        for ruta in rutas
+    ]
+
+
+@router.get("/historial/{ruta_id}", response_model=schemas.RutaPublica)
+def detalle_ruta_historial(
+    ruta_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(requiere_chofer_independiente),
+):
+    ruta = crud.obtener_ruta_historial(db, usuario.id, ruta_id)
+    if ruta is None:
+        raise HTTPException(status_code=404, detail="No encontramos esa ruta en tu historial.")
+    return ruta

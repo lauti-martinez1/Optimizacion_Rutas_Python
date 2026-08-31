@@ -1,10 +1,14 @@
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { MapContainer, Marker, Polyline, TileLayer, useMap } from "react-leaflet";
 
 import { obtenerGeometriaRutaActiva } from "../../api/rutas";
 import type { DepositoResumen, ParadaRutaPublica } from "../../tipos/ruta";
+import {
+  construirUrlGoogleMaps,
+  origenNavegacionParaParadaActual,
+} from "../../utilidades/googleMaps";
 
 const CENTRO_MENDOZA: [number, number] = [-32.8908, -68.8272];
 
@@ -62,9 +66,16 @@ function AjustarVista({ puntos }: { puntos: [number, number][] }) {
 interface Props {
   deposito: DepositoResumen;
   paradas: ParadaRutaPublica[];
+  /** false: no dibuja la pill "Ir con Maps" ni la barra inferior propias —
+   * el llamador provee su propio overlay via `children`, encimado sobre el
+   * mismo contenedor `relative` que envuelve el mapa (uso: escritorio, ver
+   * RutaDeHoyEscritorio.tsx). Default true: comportamiento actual, sin
+   * cambios para quien no pase estas props (uso: mobile). */
+  overlaySimple?: boolean;
+  children?: ReactNode;
 }
 
-export function MapaRutaActiva({ deposito, paradas }: Props) {
+export function MapaRutaActiva({ deposito, paradas, overlaySimple = true, children }: Props) {
   const [tramos, setTramos] = useState<[number, number][][]>([]);
 
   useEffect(() => {
@@ -104,20 +115,11 @@ export function MapaRutaActiva({ deposito, paradas }: Props) {
     (_, indice) => indice !== indiceProxima && paradas[indice]?.estado !== "completada",
   );
 
-  // De dónde sale la navegación a la próxima parada: del depósito si es la
-  // primera del día, o de la parada anterior (ya completada) si no — nunca
-  // de la ubicación actual del dispositivo, que puede no ser confiable.
-  const origenNavegacion =
-    indiceProxima <= 0
-      ? { latitud: deposito.latitud, longitud: deposito.longitud }
-      : {
-          latitud: paradas[indiceProxima - 1].latitud_snapshot,
-          longitud: paradas[indiceProxima - 1].longitud_snapshot,
-        };
+  const origenNavegacion = origenNavegacionParaParadaActual(deposito, paradas);
 
   return (
-    <div className="relative overflow-hidden rounded-lg border border-borde bg-superficie-hundida shadow-sm">
-      <div className="h-[280px] xl:h-[520px]">
+    <div className="relative h-full overflow-hidden rounded-lg border border-borde bg-superficie-hundida shadow-sm">
+      <div className="h-full">
         <MapContainer center={CENTRO_MENDOZA} zoom={13} style={{ height: "100%" }}>
           <TileLayer
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
@@ -147,10 +149,13 @@ export function MapaRutaActiva({ deposito, paradas }: Props) {
         </MapContainer>
       </div>
 
-      {proximaParada && (
+      {overlaySimple && proximaParada && origenNavegacion && (
         <a
           className="absolute top-3 right-3 z-[500] flex h-[34px] items-center rounded-pill border border-borde bg-[rgba(255,255,255,0.92)] px-[13px] text-[10.5px] font-semibold text-texto-fuerte shadow-sm backdrop-blur-[8px]"
-          href={`https://www.google.com/maps/dir/?api=1&origin=${origenNavegacion.latitud},${origenNavegacion.longitud}&destination=${proximaParada.latitud_snapshot},${proximaParada.longitud_snapshot}`}
+          href={construirUrlGoogleMaps(origenNavegacion, {
+            latitud: proximaParada.latitud_snapshot,
+            longitud: proximaParada.longitud_snapshot,
+          })}
           target="_blank"
           rel="noopener noreferrer"
         >
@@ -158,7 +163,7 @@ export function MapaRutaActiva({ deposito, paradas }: Props) {
         </a>
       )}
 
-      {proximaParada && (
+      {overlaySimple && proximaParada && (
         <div className="absolute right-3 bottom-2.5 left-3 z-[500] flex items-center gap-2.5 rounded-md border border-borde bg-[rgba(255,255,255,0.94)] px-3 py-2.5 shadow-md backdrop-blur-[8px]">
           <span className="h-2 w-2 shrink-0 rounded-full bg-exito" />
           <p className="min-w-0 flex-1 truncate text-[11.5px] font-semibold text-texto-fuerte">
@@ -166,6 +171,8 @@ export function MapaRutaActiva({ deposito, paradas }: Props) {
           </p>
         </div>
       )}
+
+      {children}
     </div>
   );
 }

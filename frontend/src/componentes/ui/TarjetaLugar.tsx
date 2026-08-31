@@ -51,7 +51,10 @@ export function TarjetaLugar({
   return (
     <li
       className={combinarClases(
-        "flex items-start justify-between gap-3 rounded-lg bg-blanco px-4 py-3.5",
+        // flex-wrap: cuando el trailing no entra al lado de la info en
+        // pantallas angostas (ej. los 4 campitos de armar ruta con ventana
+        // horaria), baja a su propia fila en vez de desbordar el card.
+        "flex flex-wrap items-start justify-between gap-3 rounded-lg bg-blanco px-4 py-3.5",
         ESTADO_LI[estado ?? "pendiente"],
         className,
       )}

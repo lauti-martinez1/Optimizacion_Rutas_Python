@@ -9,6 +9,12 @@ from db.modelos import Cliente, Deposito, Usuario, Vehiculo
 from routing.solver import resolver_ruteo
 from services.osrm_client import obtener_matriz_osrm
 
+# "Todo el día" — usado como ventana horaria del depósito cuando no configuró
+# una propia (hoy el caso de todos los depósitos existentes, ver
+# Deposito.ventana_inicio/fin en db/modelos.py) y como ventana por defecto
+# para cualquier nodo sin una específica.
+VENTANA_COMPLETA = (0, 1440)
+
 
 class ErrorPlanificacion(Exception):
     """Error de negocio al planificar una ruta (falta vehículo/depósito,
@@ -17,11 +23,28 @@ class ErrorPlanificacion(Exception):
 
 
 @dataclass
+class SeleccionParada:
+    """Lo que el chofer eligió para un cliente al armar la ruta de hoy —
+    versión desacoplada de api.schemas_rutas.ParadaSeleccionada (este
+    módulo no depende de la capa de API, mismo criterio que ya regía acá)."""
+
+    cliente_id: uuid.UUID
+    carga_kg: int
+    unidades: int = 0
+    ventana_inicio: int | None = None
+    ventana_fin: int | None = None
+
+
+@dataclass
 class ParadaPlanificada:
     cliente: Cliente
     carga_kg: int
+    unidades: int
     orden: int
     distancia_acumulada_m: int
+    ventana_inicio: int | None
+    ventana_fin: int | None
+    hora_estimada_llegada: int | None
 
 
 @dataclass
@@ -33,6 +56,8 @@ class ResultadoPlanificacion:
     carga_total_kg: int
     distancia_sin_optimizar_m: int
     explicacion: str
+    usa_ventanas_horarias: bool
+    hora_fin_estimada_min: int | None
 
 
 def _distancia_recorrido(matriz_distancias: list, secuencia_nodos: list[int]) -> int:
@@ -40,12 +65,16 @@ def _distancia_recorrido(matriz_distancias: list, secuencia_nodos: list[int]) ->
 
 
 def planificar_ruta(
-    db: Session, usuario: Usuario, cargas_por_cliente: dict[uuid.UUID, int]
+    db: Session,
+    usuario: Usuario,
+    selecciones: list[SeleccionParada],
+    usa_ventanas_horarias: bool = False,
 ) -> ResultadoPlanificacion:
-    """Arma y resuelve el CVRP para los clientes seleccionados por `usuario`,
-    usando su vehículo y depósito ya configurados. Compartida por
-    /rutas/optimizar (preview, no persiste) y /rutas/confirmar (persiste el
-    mismo resultado) para no recalcular ni duplicar el armado del problema."""
+    """Arma y resuelve el problema (CVRP, o VRPTW si `usa_ventanas_horarias`)
+    para los clientes seleccionados por `usuario`, usando su vehículo y
+    depósito ya configurados. Compartida por /rutas/optimizar (preview, no
+    persiste) y /rutas/confirmar (persiste el mismo resultado) para no
+    recalcular ni duplicar el armado del problema."""
     vehiculo = usuario.vehiculo
     if vehiculo is None:
         raise ErrorPlanificacion("No tenés un vehículo registrado.")
@@ -56,9 +85,18 @@ def planificar_ruta(
         raise ErrorPlanificacion("Todavía no configuraste tu depósito de partida.")
     deposito = depositos[0]
 
+    cargas_por_cliente = {s.cliente_id: s for s in selecciones}
     clientes = crud.obtener_clientes_propios(db, list(cargas_por_cliente), duenio)
     if len(clientes) != len(cargas_por_cliente):
         raise ErrorPlanificacion("Alguno de los lugares seleccionados ya no existe.")
+
+    if usa_ventanas_horarias and any(
+        s.ventana_inicio is None or s.ventana_fin is None for s in selecciones
+    ):
+        raise ErrorPlanificacion(
+            "Elegiste usar ventanas horarias para esta ruta: completá el horario "
+            "de cada parada antes de optimizar."
+        )
 
     coordenadas = [{"latitud": deposito.latitud, "longitud": deposito.longitud}] + [
         {"latitud": cliente.latitud, "longitud": cliente.longitud} for cliente in clientes
@@ -69,12 +107,12 @@ def planificar_ruta(
         raise ErrorPlanificacion(f"No se pudo calcular la ruta: {error}") from error
 
     matriz_distancias = matrices["matriz_distancias_metros"]
-    demandas = [0] + [cargas_por_cliente[cliente.id] for cliente in clientes]
+    demandas = [0] + [cargas_por_cliente[cliente.id].carga_kg for cliente in clientes]
 
-    # Un solo vehículo, sin ventanas horarias todavía (CVRP puro) — si el solver
-    # falla, la causa casi siempre es esta y no una traza genérica de OR-Tools
-    # ayuda al chofer a entender qué hacer. Se chequea antes de llamar al solver
-    # para no depender de que agote el time_limit en un problema ya sin salida.
+    # Un solo vehículo — si el solver falla, la causa casi siempre es esta y
+    # no una traza genérica de OR-Tools ayuda al chofer a entender qué hacer.
+    # Se chequea antes de llamar al solver para no depender de que agote el
+    # time_limit en un problema ya sin salida.
     carga_total = sum(demandas)
     if carga_total > vehiculo.capacidad_carga_kg:
         raise ErrorPlanificacion(
@@ -83,13 +121,44 @@ def planificar_ruta(
             f"repartilo en más de una ruta."
         )
 
-    resultado = resolver_ruteo(matriz_distancias, demandas, [vehiculo.capacidad_carga_kg])
+    kwargs_solver = {}
+    if usa_ventanas_horarias:
+        kwargs_solver["matriz_tiempos"] = matrices["matriz_tiempos_segundos"]
+        kwargs_solver["tiempos_servicio"] = [0] + [
+            cliente.tiempo_servicio_default for cliente in clientes
+        ]
+        if deposito.ventana_inicio is not None and deposito.ventana_fin is not None:
+            ventana_deposito = (deposito.ventana_inicio, deposito.ventana_fin)
+        else:
+            ventana_deposito = VENTANA_COMPLETA
+        kwargs_solver["ventanas_horarias"] = [ventana_deposito] + [
+            (
+                cargas_por_cliente[cliente.id].ventana_inicio,
+                cargas_por_cliente[cliente.id].ventana_fin,
+            )
+            for cliente in clientes
+        ]
+        kwargs_solver["tipo_problema"] = "VRPTW"
+
+    resultado = resolver_ruteo(
+        matriz_distancias, demandas, [vehiculo.capacidad_carga_kg], **kwargs_solver
+    )
     if resultado["estado"] == "Fallo":
-        raise ErrorPlanificacion(resultado["mensaje"])
+        mensaje = resultado["mensaje"]
+        if usa_ventanas_horarias:
+            mensaje += " Revisá que las ventanas horarias sean alcanzables entre sí."
+        raise ErrorPlanificacion(mensaje)
+
+    ruta_nodos = resultado["rutas"][0]["ruta_secuencial_nodos"]
+    minuto_llegada_por_nodo = (
+        {info["nodo_id"]: info["minuto_llegada"] for info in ruta_nodos}
+        if usa_ventanas_horarias
+        else {}
+    )
 
     # Nodo 0 = depósito (no es una parada), nodo i = clientes[i - 1] — mismo
     # orden en que se armaron `coordenadas` y `demandas` arriba.
-    secuencia_nodos = [nodo["nodo_id"] for nodo in resultado["rutas"][0]["ruta_secuencial_nodos"]]
+    secuencia_nodos = [info["nodo_id"] for info in ruta_nodos]
     paradas = []
     distancia_acumulada = 0
     orden = 0
@@ -101,12 +170,17 @@ def planificar_ruta(
         if nodo_actual == 0:
             continue
         cliente = clientes[nodo_actual - 1]
+        seleccion = cargas_por_cliente[cliente.id]
         paradas.append(
             ParadaPlanificada(
                 cliente=cliente,
-                carga_kg=cargas_por_cliente[cliente.id],
+                carga_kg=seleccion.carga_kg,
+                unidades=seleccion.unidades,
                 orden=orden,
                 distancia_acumulada_m=distancia_acumulada,
+                ventana_inicio=seleccion.ventana_inicio,
+                ventana_fin=seleccion.ventana_fin,
+                hora_estimada_llegada=minuto_llegada_por_nodo.get(nodo_actual),
             )
         )
         orden += 1
@@ -128,6 +202,12 @@ def planificar_ruta(
         f"({resultado['rutas'][0]['carga_total']}/{vehiculo.capacidad_carga_kg} kg, "
         f"{porcentaje_carga}%)."
     )
+    if usa_ventanas_horarias:
+        explicacion += " También respeta la ventana horaria que le pusiste a cada parada."
+
+    hora_fin_estimada_min = (
+        minuto_llegada_por_nodo.get(secuencia_nodos[-1]) if usa_ventanas_horarias else None
+    )
 
     return ResultadoPlanificacion(
         vehiculo=vehiculo,
@@ -137,4 +217,6 @@ def planificar_ruta(
         carga_total_kg=resultado["rutas"][0]["carga_total"],
         distancia_sin_optimizar_m=distancia_sin_optimizar_m,
         explicacion=explicacion,
+        usa_ventanas_horarias=usa_ventanas_horarias,
+        hora_fin_estimada_min=hora_fin_estimada_min,
     )

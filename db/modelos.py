@@ -344,6 +344,9 @@ class Ruta(Base):
         DateTime(timezone=True), nullable=True
     )
     hora_fin_real: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Minuto del día en que el solver VRPTW estimó la vuelta al depósito —
+    # None en modo CVRP, que no calcula tiempos (ver routing/solver.py).
+    hora_fin_estimada_min: Mapped[int | None] = mapped_column(Integer, nullable=True)
     fecha_creacion: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -388,6 +391,8 @@ class ParadaRuta(Base):
     latitud_snapshot: Mapped[float] = mapped_column(Float, nullable=False)
     longitud_snapshot: Mapped[float] = mapped_column(Float, nullable=False)
     demanda_carga_snapshot: Mapped[int] = mapped_column(Integer, nullable=False)
+    unidades_snapshot: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    distancia_acumulada_m: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     tiempo_servicio_snapshot: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     ventana_inicio_snapshot: Mapped[int | None] = mapped_column(Integer, nullable=True)
     ventana_fin_snapshot: Mapped[int | None] = mapped_column(Integer, nullable=True)

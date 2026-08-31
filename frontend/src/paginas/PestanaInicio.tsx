@@ -1,6 +1,4 @@
-import { useEffect, useState } from "react";
-
-import { completarParada, eliminarRuta, iniciarRuta, obtenerRutaActiva } from "../api/rutas";
+import { completarParada, eliminarRuta, iniciarRuta } from "../api/rutas";
 import { MapaRutaActiva } from "../componentes/rutas/MapaRutaActiva";
 import { Boton } from "../componentes/ui/Boton";
 import { BannerError } from "../componentes/ui/Formulario";
@@ -10,7 +8,8 @@ import { TarjetaLugar } from "../componentes/ui/TarjetaLugar";
 import { TextoEyebrow } from "../componentes/ui/TextoEyebrow";
 import { TextoVacio } from "../componentes/ui/TextoVacio";
 import { combinarClases } from "../componentes/ui/combinarClases";
-import type { EstadoRuta, RutaPublica } from "../tipos/ruta";
+import { useRutaActiva } from "../hooks/useRutaActiva";
+import type { EstadoRuta } from "../tipos/ruta";
 
 const ETIQUETA_ESTADO: Record<EstadoRuta, string> = {
   planificada: "Planificada",
@@ -34,44 +33,7 @@ interface Props {
 }
 
 export function PestanaInicio({ onEditar, onArmarRuta }: Props) {
-  const [ruta, setRuta] = useState<RutaPublica | null>(null);
-  const [cargando, setCargando] = useState(true);
-  const [enviando, setEnviando] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function recargar() {
-    setRuta(await obtenerRutaActiva());
-  }
-
-  useEffect(() => {
-    // oxlint no distingue que setRuta ocurre después de un await dentro de
-    // recargar() — no hay setState síncrono ni loop de renders acá.
-    // oxlint-disable-next-line react/set-state-in-effect
-    recargar().finally(() => setCargando(false));
-  }, []);
-
-  /** Iniciar/completar devuelven la Ruta actualizada — la usamos tal cual en
-   * vez de recargar vía GET /activa, que ya no encuentra una ruta recién
-   * completada (esa deja de contar como "activa") y pisaría el resumen
-   * final con el estado vacío antes de que el chofer llegue a verlo.
-   * Eliminar no devuelve una Ruta (queda cancelada, deja de ser "activa"),
-   * así que su acción se pasa sin valor de retorno y siempre recarga. */
-  async function ejecutar(accion: () => Promise<RutaPublica | void>, mensajeError: string) {
-    setError(null);
-    setEnviando(true);
-    try {
-      const resultado = await accion();
-      if (resultado) {
-        setRuta(resultado);
-      } else {
-        await recargar();
-      }
-    } catch {
-      setError(mensajeError);
-    } finally {
-      setEnviando(false);
-    }
-  }
+  const { ruta, cargando, enviando, error, ejecutar } = useRutaActiva();
 
   if (cargando) {
     return <TextoVacio>Cargando…</TextoVacio>;
@@ -157,7 +119,11 @@ export function PestanaInicio({ onEditar, onArmarRuta }: Props) {
       {error && <BannerError>{error}</BannerError>}
 
       <div className={conMapa ? "xl:grid xl:grid-cols-[1fr_380px] xl:items-start xl:gap-5" : undefined}>
-        {conMapa && <MapaRutaActiva deposito={ruta.deposito} paradas={ruta.paradas} />}
+        {conMapa && (
+          <div className="h-[280px] xl:h-[520px]">
+            <MapaRutaActiva deposito={ruta.deposito} paradas={ruta.paradas} />
+          </div>
+        )}
 
         <ol className={combinarClases("flex flex-col gap-2.5", conMapa && "xl:max-h-[520px] xl:overflow-y-auto")}>
           {ruta.paradas.map((parada) => (

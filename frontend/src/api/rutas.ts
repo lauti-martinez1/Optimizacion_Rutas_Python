@@ -1,5 +1,11 @@
 import { fetchApi } from "./cliente";
-import type { GeometriaRuta, OptimizarRutaRequest, RutaPreview, RutaPublica } from "../tipos/ruta";
+import type {
+  GeometriaRuta,
+  OptimizarRutaRequest,
+  RutaHistorialItem,
+  RutaPreview,
+  RutaPublica,
+} from "../tipos/ruta";
 
 const BASE = "/api/v1/rutas";
 
@@ -44,4 +50,14 @@ export function obtenerRutaActiva() {
 
 export function obtenerGeometriaRutaActiva() {
   return fetchApi<GeometriaRuta>(`${BASE}/activa/geometria`);
+}
+
+export function obtenerHistorialRutas(desde: string, hasta: string) {
+  return fetchApi<RutaHistorialItem[]>(
+    `${BASE}/historial?desde=${desde}&hasta=${hasta}`,
+  );
+}
+
+export function obtenerRutaHistorial(id: string) {
+  return fetchApi<RutaPublica>(`${BASE}/historial/${id}`);
 }

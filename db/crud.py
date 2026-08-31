@@ -63,6 +63,21 @@ class DatosDeposito(Protocol):
     ventana_fin: int | None
 
 
+class DatosParadaRuta(Protocol):
+    """Forma estructural que necesita crear_ruta para cada parada — cumplida
+    tal cual por routing.planificador.ParadaPlanificada, sin que este módulo
+    dependa de esa capa."""
+
+    cliente: Cliente
+    orden: int
+    carga_kg: int
+    unidades: int
+    distancia_acumulada_m: int
+    ventana_inicio: int | None
+    ventana_fin: int | None
+    hora_estimada_llegada: int | None
+
+
 def obtener_usuario_por_email(db: Session, email: str) -> Usuario | None:
     return db.execute(select(Usuario).where(Usuario.email == email)).scalar_one_or_none()
 
@@ -305,12 +320,14 @@ def crear_ruta(
     vehiculo: Vehiculo,
     deposito: Deposito,
     fecha: date,
+    tipo_problema: TipoProblema,
     distancia_total_m: int,
     explicacion: str,
-    paradas: list[dict],
+    hora_fin_estimada_min: int | None,
+    paradas: list[DatosParadaRuta],
 ) -> Ruta:
-    """`paradas`: lista de {"cliente": Cliente, "orden": int, "carga_kg": int},
-    ya en el orden que resolvió el solver (ver routing/planificador.py)."""
+    """`paradas` ya viene en el orden que resolvió el solver (ver
+    routing/planificador.py)."""
     ruta = guardar(
         db,
         Ruta(
@@ -319,28 +336,59 @@ def crear_ruta(
             deposito_id=deposito.id,
             creado_por_usuario_id=chofer.id,
             fecha=fecha,
-            tipo_problema=TipoProblema.CVRP,
+            tipo_problema=tipo_problema,
             estado=EstadoRuta.PLANIFICADA,
             distancia_total_m=distancia_total_m,
             explicacion=explicacion,
+            hora_fin_estimada_min=hora_fin_estimada_min,
         ),
     )
     for item in paradas:
-        cliente = item["cliente"]
+        cliente = item.cliente
         guardar(
             db,
             ParadaRuta(
                 ruta_id=ruta.id,
                 cliente_id=cliente.id,
-                orden=item["orden"],
+                orden=item.orden,
                 nombre_snapshot=cliente.nombre,
                 direccion_snapshot=cliente.direccion,
                 latitud_snapshot=cliente.latitud,
                 longitud_snapshot=cliente.longitud,
-                demanda_carga_snapshot=item["carga_kg"],
+                demanda_carga_snapshot=item.carga_kg,
+                unidades_snapshot=item.unidades,
+                distancia_acumulada_m=item.distancia_acumulada_m,
+                ventana_inicio_snapshot=item.ventana_inicio,
+                ventana_fin_snapshot=item.ventana_fin,
+                hora_estimada_llegada=item.hora_estimada_llegada,
             ),
         )
     return ruta
+
+
+def listar_rutas_historial(
+    db: Session, chofer_id: uuid.UUID, desde: date, hasta: date
+) -> list[Ruta]:
+    """Historial de rutas de un chofer en un rango de fechas, cualquier
+    estado (a diferencia de obtener_ruta_activa, acá interesan también las
+    completadas/canceladas) — alimenta el almanaque de "Historial de rutas".
+    Puede haber más de una Ruta para el mismo día (el chofer canceló y
+    volvió a armar otra) — se ordena con la más reciente primero dentro de
+    cada fecha para que el caller pueda quedarse con "la última palabra"
+    del día sin tener que ordenar de nuevo."""
+    return list(
+        db.execute(
+            select(Ruta)
+            .where(Ruta.chofer_id == chofer_id, Ruta.fecha.between(desde, hasta))
+            .order_by(Ruta.fecha.desc(), Ruta.fecha_creacion.desc())
+        ).scalars()
+    )
+
+
+def obtener_ruta_historial(db: Session, chofer_id: uuid.UUID, ruta_id: uuid.UUID) -> Ruta | None:
+    return db.execute(
+        select(Ruta).where(Ruta.id == ruta_id, Ruta.chofer_id == chofer_id)
+    ).scalar_one_or_none()
 
 
 def cancelar_ruta(db: Session, ruta: Ruta) -> None:

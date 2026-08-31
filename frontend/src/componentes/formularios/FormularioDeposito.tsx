@@ -4,10 +4,12 @@ import { ErrorFormulario } from "../../api/cliente";
 import { actualizarDeposito, crearDeposito } from "../../api/depositos";
 import { useEnvioFormulario } from "../../hooks/useEnvioFormulario";
 import type { DepositoPublico } from "../../tipos/deposito";
+import { hhMmAMinutos, minutosAHhMm } from "../../utilidades/horario";
 import { SelectorUbicacion } from "../mapa/SelectorUbicacion";
 import { Boton } from "../ui/Boton";
 import { Campo } from "../ui/Campo";
 import { Formulario } from "../ui/Formulario";
+import { TextoEyebrow } from "../ui/TextoEyebrow";
 
 interface Props {
   deposito?: DepositoPublico | null;
@@ -23,6 +25,12 @@ export function FormularioDeposito({ deposito = null, onGuardado, onCancelar }: 
   // El Depósito no tiene columna de dirección — este texto es solo la
   // confirmación visual de SelectorUbicacion, nunca se guarda.
   const [direccion, setDireccion] = useState("");
+  const [horaApertura, setHoraApertura] = useState(
+    deposito?.ventana_inicio != null ? minutosAHhMm(deposito.ventana_inicio) : "",
+  );
+  const [horaCierre, setHoraCierre] = useState(
+    deposito?.ventana_fin != null ? minutosAHhMm(deposito.ventana_fin) : "",
+  );
 
   function manejarSubmit(evento: FormEvent) {
     evento.preventDefault();
@@ -30,7 +38,13 @@ export function FormularioDeposito({ deposito = null, onGuardado, onCancelar }: 
       if (latitud == null || longitud == null) {
         throw new ErrorFormulario("Marcá en el mapa dónde arrancás y terminás tu día.");
       }
-      const datos = { nombre, latitud, longitud };
+      const datos = {
+        nombre,
+        latitud,
+        longitud,
+        ventana_inicio: horaApertura ? hhMmAMinutos(horaApertura) : null,
+        ventana_fin: horaCierre ? hhMmAMinutos(horaCierre) : null,
+      };
       const guardado = deposito
         ? await actualizarDeposito(deposito.id, datos)
         : await crearDeposito(datos);
@@ -62,6 +76,21 @@ export function FormularioDeposito({ deposito = null, onGuardado, onCancelar }: 
         direccion={direccion}
         onCambiarDireccion={setDireccion}
       />
+      <TextoEyebrow>Horario del depósito (opcional)</TextoEyebrow>
+      <div className="flex gap-2.5">
+        <Campo
+          etiqueta="Abre"
+          type="time"
+          value={horaApertura}
+          onChange={(e) => setHoraApertura(e.target.value)}
+        />
+        <Campo
+          etiqueta="Cierra"
+          type="time"
+          value={horaCierre}
+          onChange={(e) => setHoraCierre(e.target.value)}
+        />
+      </div>
       <div className="flex gap-2.5 [&>*]:flex-1">
         <Boton type="button" variante="secundario" onClick={onCancelar}>
           Cancelar

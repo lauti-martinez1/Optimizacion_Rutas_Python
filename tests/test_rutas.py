@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from itertools import pairwise
 
 import pytest
@@ -318,6 +319,123 @@ def test_geometria_ruta_activa(client, osrm_falso, osrm_geometria_falsa):
     # depósito→parada→depósito: 2 tramos.
     assert len(tramos) == 2
     assert all(len(tramo) >= 2 for tramo in tramos)
+
+
+def test_confirmar_con_ventanas_horarias_calcula_llegada(client, osrm_falso):
+    cliente1, cliente2 = _armar_chofer_con_lugares(client)
+
+    respuesta = client.post(
+        f"{BASE_RUTAS}/confirmar",
+        json={
+            "paradas": [
+                {
+                    "cliente_id": cliente1["id"],
+                    "carga_kg": 10,
+                    "unidades": 3,
+                    "ventana_inicio": 480,
+                    "ventana_fin": 600,
+                },
+                {
+                    "cliente_id": cliente2["id"],
+                    "carga_kg": 5,
+                    "unidades": 7,
+                    "ventana_inicio": 500,
+                    "ventana_fin": 700,
+                },
+            ],
+            "usa_ventanas_horarias": True,
+        },
+    )
+    assert respuesta.status_code == 201
+    cuerpo = respuesta.json()
+    assert cuerpo["usa_ventanas_horarias"] is True
+    assert cuerpo["tipo_problema"] == "VRPTW"
+    for parada in cuerpo["paradas"]:
+        assert parada["hora_estimada_llegada"] is not None
+        assert parada["ventana_inicio_snapshot"] is not None
+        assert parada["ventana_fin_snapshot"] is not None
+
+
+def test_ventanas_horarias_sin_completar_todas_da_400(client, osrm_falso):
+    cliente1, cliente2 = _armar_chofer_con_lugares(client)
+
+    respuesta = client.post(
+        f"{BASE_RUTAS}/optimizar",
+        json={
+            "paradas": [
+                {
+                    "cliente_id": cliente1["id"],
+                    "carga_kg": 10,
+                    "ventana_inicio": 480,
+                    "ventana_fin": 600,
+                },
+                {"cliente_id": cliente2["id"], "carga_kg": 5},
+            ],
+            "usa_ventanas_horarias": True,
+        },
+    )
+    assert respuesta.status_code == 400
+    assert "ventana" in respuesta.json()["detail"].lower()
+
+
+def test_unidades_y_distancia_acumulada_persisten(client, osrm_falso):
+    cliente1, cliente2 = _armar_chofer_con_lugares(client)
+
+    respuesta = client.post(
+        f"{BASE_RUTAS}/confirmar",
+        json={
+            "paradas": [
+                {"cliente_id": cliente1["id"], "carga_kg": 10, "unidades": 4},
+                {"cliente_id": cliente2["id"], "carga_kg": 5, "unidades": 9},
+            ]
+        },
+    )
+    assert respuesta.status_code == 201
+
+    activa = client.get(f"{BASE_RUTAS}/activa").json()
+    unidades_por_parada = {p["unidades_snapshot"] for p in activa["paradas"]}
+    assert unidades_por_parada == {4, 9}
+    assert all(p["distancia_acumulada_m"] > 0 for p in activa["paradas"])
+
+
+def test_historial_lista_rutas_del_rango_con_contadores(client, osrm_falso):
+    cliente1, _ = _armar_chofer_con_lugares(client)
+
+    client.post(
+        f"{BASE_RUTAS}/confirmar",
+        json={"paradas": [{"cliente_id": cliente1["id"], "carga_kg": 10}]},
+    )
+    client.post(f"{BASE_RUTAS}/activa/iniciar")
+    parada_id = client.get(f"{BASE_RUTAS}/activa").json()["paradas"][0]["id"]
+    client.post(f"{BASE_RUTAS}/activa/paradas/{parada_id}/completar")
+
+    hoy = datetime.now(UTC).date().isoformat()
+    respuesta = client.get(f"{BASE_RUTAS}/historial", params={"desde": hoy, "hasta": hoy})
+    assert respuesta.status_code == 200
+    cuerpo = respuesta.json()
+    assert len(cuerpo) == 1
+    assert cuerpo[0]["estado"] == "completada"
+    assert cuerpo[0]["paradas_total"] == 1
+    assert cuerpo[0]["paradas_completadas"] == 1
+
+    detalle = client.get(f"{BASE_RUTAS}/historial/{cuerpo[0]['id']}")
+    assert detalle.status_code == 200
+    assert detalle.json()["id"] == cuerpo[0]["id"]
+
+
+def test_historial_de_ruta_ajena_da_404(client, osrm_falso):
+    _registrar_chofer_independiente(client, email="dueno-hist@test.com", patente="HI111HI")
+    client.post(BASE_DEPOSITOS, json=PAYLOAD_DEPOSITO)
+    cliente = client.post(BASE_CLIENTES, json=PAYLOAD_CLIENTE_1).json()
+    ruta = client.post(
+        f"{BASE_RUTAS}/confirmar",
+        json={"paradas": [{"cliente_id": cliente["id"], "carga_kg": 10}]},
+    ).json()
+    client.cookies.clear()
+
+    _registrar_chofer_independiente(client, email="otro-hist@test.com", patente="HI222HI")
+    respuesta = client.get(f"{BASE_RUTAS}/historial/{ruta['id']}")
+    assert respuesta.status_code == 404
 
 
 def test_optimizar_excede_capacidad_da_mensaje_especifico(client, osrm_falso):

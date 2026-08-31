@@ -10,6 +10,7 @@
   --animate-pulso-marcador: pulso-marcador 1.8s ease-in-out infinite;
   --animate-aparecer-fondo: aparecer-fondo 0.2s ease-out both;
   --animate-deslizar-panel: deslizar-panel 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-deslizar-panel-izq: deslizar-panel-izq 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 @keyframes trazar-ruta {
@@ -73,6 +74,12 @@
 @keyframes deslizar-panel {
   from {
     transform: translateX(100%);
+  }
+}
+
+@keyframes deslizar-panel-izq {
+  from {
+    transform: translateX(-100%);
   }
 }
 
